@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TrendingUp, ArrowDownToLine, Eye, MousePointerClick, Users, Wifi, CalendarPlus, Coins } from "lucide-react";
+import { Users, Wifi, CalendarPlus, Coins } from "lucide-react";
 import logo from "@/assets/doggy-cash-logo.png";
 
 interface HomeTabProps {
