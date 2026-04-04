@@ -14,16 +14,484 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      channel_verifications: {
+        Row: {
+          channel_id: string
+          id: string
+          user_id: string
+          verified: boolean
+          verified_at: string | null
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          user_id: string
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          user_id?: string
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_verifications_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_verifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channels: {
+        Row: {
+          country_restriction: string | null
+          created_at: string
+          id: string
+          link: string
+          name: string
+          required: boolean
+          sort_order: number
+          telegram_username: string
+        }
+        Insert: {
+          country_restriction?: string | null
+          created_at?: string
+          id?: string
+          link: string
+          name: string
+          required?: boolean
+          sort_order?: number
+          telegram_username: string
+        }
+        Update: {
+          country_restriction?: string | null
+          created_at?: string
+          id?: string
+          link?: string
+          name?: string
+          required?: boolean
+          sort_order?: number
+          telegram_username?: string
+        }
+        Relationships: []
+      }
+      clicks: {
+        Row: {
+          created_at: string
+          earned: number
+          id: string
+          link_url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          earned?: number
+          id?: string
+          link_url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          earned?: number
+          id?: string
+          link_url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clicks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          commission_earned: number
+          created_at: string
+          id: string
+          referee_id: string
+          referrer_id: string
+          reward_amount: number
+          reward_claimed: boolean
+          verified: boolean
+          verified_at: string | null
+        }
+        Insert: {
+          commission_earned?: number
+          created_at?: string
+          id?: string
+          referee_id: string
+          referrer_id: string
+          reward_amount?: number
+          reward_claimed?: boolean
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Update: {
+          commission_earned?: number
+          created_at?: string
+          id?: string
+          referee_id?: string
+          referrer_id?: string
+          reward_amount?: number
+          reward_claimed?: boolean
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referee_id_fkey"
+            columns: ["referee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_claims: {
+        Row: {
+          amount: number
+          code_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          code_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          code_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_claims_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "reward_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          current_uses: number
+          id: string
+          max_uses: number
+          value: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          current_uses?: number
+          id?: string
+          max_uses?: number
+          value?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          current_uses?: number
+          id?: string
+          max_uses?: number
+          value?: number
+        }
+        Relationships: []
+      }
+      task_submissions: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          status: Database["public"]["Enums"]["task_status"]
+          task_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          task_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          task_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_submissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          id: string
+          link: string | null
+          requires_image: boolean
+          title: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          link?: string | null
+          requires_image?: boolean
+          title: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          link?: string | null
+          requires_image?: boolean
+          title?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          access_tasks_completed: boolean
+          balance: number
+          banned: boolean
+          country: string | null
+          created_at: string
+          first_name: string | null
+          id: string
+          photo_url: string | null
+          referrer_id: string | null
+          telegram_id: number
+          updated_at: string
+          username: string | null
+          wallet_address: string | null
+          welcome_bonus_claimed: boolean
+        }
+        Insert: {
+          access_tasks_completed?: boolean
+          balance?: number
+          banned?: boolean
+          country?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          photo_url?: string | null
+          referrer_id?: string | null
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+          wallet_address?: string | null
+          welcome_bonus_claimed?: boolean
+        }
+        Update: {
+          access_tasks_completed?: boolean
+          balance?: number
+          banned?: boolean
+          country?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          photo_url?: string | null
+          referrer_id?: string | null
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+          wallet_address?: string | null
+          welcome_bonus_claimed?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      withdrawals: {
+        Row: {
+          admin_note: string | null
+          amount: number
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["withdraw_status"]
+          updated_at: string
+          usdt_amount: number
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["withdraw_status"]
+          updated_at?: string
+          usdt_amount: number
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["withdraw_status"]
+          updated_at?: string
+          usdt_amount?: number
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      task_status: "pending" | "approved" | "rejected"
+      withdraw_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +618,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      task_status: ["pending", "approved", "rejected"],
+      withdraw_status: ["pending", "approved", "rejected"],
+    },
   },
 } as const
