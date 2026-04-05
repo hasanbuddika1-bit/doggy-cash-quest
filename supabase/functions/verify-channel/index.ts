@@ -18,6 +18,14 @@ Deno.serve(async (req) => {
 
   try {
     const { user_id, channel_username, telegram_id } = await req.json();
+    const normalizedChannelUsername = String(channel_username || '').replace(/^@/, '').trim();
+
+    if (!user_id || !normalizedChannelUsername || !telegram_id) {
+      return new Response(JSON.stringify({ error: 'Missing required fields', verified: false, reason: 'invalid_request' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Check if user is a member of the channel
     const response = await fetch(`${GATEWAY_URL}/getChatMember`, {
@@ -28,18 +36,39 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        chat_id: `@${channel_username}`,
+        chat_id: `@${normalizedChannelUsername}`,
         user_id: telegram_id,
       }),
     });
 
-    const data = await response.json();
+    const rawResponse = await response.text();
+    let data: Record<string, any> = {};
+
+    try {
+      data = rawResponse ? JSON.parse(rawResponse) : {};
+    } catch {
+      data = { raw: rawResponse };
+    }
+
+    if (!response.ok || data.ok === false) {
+      const description = data.description || data.error || rawResponse || 'Telegram API error';
+      const lowered = String(description).toLowerCase();
+      const reason = lowered.includes('chat not found') || lowered.includes('not enough rights') || lowered.includes('member list is inaccessible')
+        ? 'bot_missing_channel_access'
+        : 'telegram_api_error';
+
+      console.error('verify-channel telegram error:', description);
+      return new Response(JSON.stringify({ verified: false, status: null, reason, error: description }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const status = data.result?.status;
     const isMember = ['member', 'administrator', 'creator'].includes(status);
 
     if (isMember) {
       // Get channel ID
-      const { data: channel } = await supabase.from('channels').select('id').eq('telegram_username', channel_username).single();
+      const { data: channel } = await supabase.from('channels').select('id').eq('telegram_username', normalizedChannelUsername).single();
       if (channel) {
         await supabase.from('channel_verifications').upsert({
           user_id,
@@ -50,7 +79,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ verified: isMember, status }), {
+    return new Response(JSON.stringify({ verified: isMember, status, reason: isMember ? 'verified' : 'not_member' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: unknown) {

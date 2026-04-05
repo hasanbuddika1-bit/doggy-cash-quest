@@ -8,7 +8,7 @@ import { HomeTab } from "@/components/tabs/HomeTab";
 import { EarnTab } from "@/components/tabs/EarnTab";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
-import { getCurrentUser, getStartParam, getTelegramWebApp } from "@/lib/telegram";
+import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
 
 type AppState = "loading" | "access_tasks" | "main";
@@ -25,7 +25,7 @@ const Index = () => {
   const initApp = useCallback(async () => {
     try {
       // Init Telegram
-      const webapp = getTelegramWebApp();
+      const webapp = await ensureTelegramWebApp();
       if (webapp) { webapp.ready(); webapp.expand(); }
 
       setProgress(20);
