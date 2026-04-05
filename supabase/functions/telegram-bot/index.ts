@@ -2,6 +2,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
+const ADMIN_CHAT_ID = '5419054691';
+
+async function sendTelegram(method: string, body: any, lovableKey: string, telegramKey: string) {
+  const res = await fetch(`${GATEWAY_URL}/${method}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableKey}`,
+      'X-Connection-Api-Key': telegramKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function notifyAdmin(text: string, lovableKey: string, telegramKey: string) {
+  await sendTelegram('sendMessage', {
+    chat_id: ADMIN_CHAT_ID,
+    text,
+    parse_mode: 'HTML',
+  }, lovableKey, telegramKey);
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -23,7 +45,6 @@ Deno.serve(async (req) => {
     if (action === 'get_or_create_user') {
       const { telegram_id, username, first_name, photo_url, referrer_id } = body;
       
-      // Check existing user
       let { data: user } = await supabase.from('users').select('*').eq('telegram_id', telegram_id).single();
       
       if (!user) {
@@ -34,7 +55,6 @@ Deno.serve(async (req) => {
         if (error) throw error;
         user = newUser;
 
-        // Create referral record if referred
         if (referrer_id) {
           await supabase.from('referrals').insert({
             referrer_id,
@@ -42,8 +62,13 @@ Deno.serve(async (req) => {
             verified: false,
           });
         }
+
+        // Notify admin about new user
+        await notifyAdmin(
+          `👤 <b>New User Joined!</b>\n\nName: ${first_name || 'N/A'}\nUsername: @${username || 'N/A'}\nTelegram ID: <code>${telegram_id}</code>${referrer_id ? '\n📎 Referred by: ' + referrer_id : ''}`,
+          LOVABLE_API_KEY, TELEGRAM_API_KEY
+        );
       } else {
-        // Update user info
         await supabase.from('users').update({ username, first_name, photo_url }).eq('id', user.id);
       }
 
@@ -57,7 +82,6 @@ Deno.serve(async (req) => {
       if (!user) throw new Error('User not found');
       if (user.welcome_bonus_claimed) throw new Error('Already claimed');
 
-      // Get welcome bonus amount
       const { data: setting } = await supabase.from('app_settings').select('value').eq('key', 'welcome_bonus').single();
       const bonusAmount = Number(setting?.value || 50);
 
@@ -67,48 +91,30 @@ Deno.serve(async (req) => {
         access_tasks_completed: true,
       }).eq('id', user_id);
 
-      // Send welcome message via Telegram
-      await fetch(`${GATEWAY_URL}/sendMessage`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'X-Connection-Api-Key': TELEGRAM_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: telegram_id,
-          text: `🎉 <b>Welcome to Doggy Cash!</b> 🐶💰\n\nYou've earned <b>${bonusAmount} Doggy</b> as a welcome bonus!\n\n🦴 Earn more by completing tasks, clicking links, and referring friends!\n💰 100 Doggy = 0.01 USDT\n\nStart earning now! 🚀`,
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [{ text: '💰 Earn Doggy', web_app: { url: `https://id-preview--692f1497-b0d6-46f9-9739-0533255efe74.lovable.app` } }],
-              [{ text: '📢 Community', url: 'https://t.me/doggycash12' }],
-            ],
-          }),
+      await sendTelegram('sendMessage', {
+        chat_id: telegram_id,
+        text: `🎉 <b>Welcome to Doggy Cash!</b> 🐶💰\n\nYou've earned <b>${bonusAmount} Doggy</b> as a welcome bonus!\n\n🦴 Earn more by completing tasks, clicking links, and referring friends!\n💰 100 Doggy = 0.01 USDT\n\nStart earning now! 🚀`,
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [{ text: '💰 Earn Doggy', web_app: { url: `https://doggy-cash-quest.lovable.app` } }],
+            [{ text: '📢 Community', url: 'https://t.me/doggycash12' }],
+          ],
         }),
-      });
+      }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
 
       // Verify referral if this user was referred
       if (user.referrer_id) {
         await supabase.from('referrals').update({ verified: true, verified_at: new Date().toISOString() })
           .eq('referee_id', user_id).eq('referrer_id', user.referrer_id);
         
-        // Notify referrer
         const { data: referrer } = await supabase.from('users').select('telegram_id').eq('id', user.referrer_id).single();
         if (referrer) {
-          await fetch(`${GATEWAY_URL}/sendMessage`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'X-Connection-Api-Key': TELEGRAM_API_KEY,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              chat_id: referrer.telegram_id,
-              text: `✅ Your referral has been verified! Claim your reward in the app. 🎁`,
-              parse_mode: 'HTML',
-            }),
-          });
+          await sendTelegram('sendMessage', {
+            chat_id: referrer.telegram_id,
+            text: `✅ Your referral has been verified! Claim your reward in the app. 🎁`,
+            parse_mode: 'HTML',
+          }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         }
       }
 
@@ -122,11 +128,9 @@ Deno.serve(async (req) => {
       if (!rewardCode) return new Response(JSON.stringify({ success: false, message: 'Invalid or inactive code' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       if (rewardCode.current_uses >= rewardCode.max_uses) return new Response(JSON.stringify({ success: false, message: 'Code fully used' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      // Check if already claimed
       const { data: existing } = await supabase.from('reward_claims').select('id').eq('user_id', user_id).eq('code_id', rewardCode.id).single();
       if (existing) return new Response(JSON.stringify({ success: false, message: 'Already claimed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      // Claim
       await supabase.from('reward_claims').insert({ user_id, code_id: rewardCode.id, amount: rewardCode.value });
       await supabase.from('reward_codes').update({ current_uses: rewardCode.current_uses + 1 }).eq('id', rewardCode.id);
       
@@ -154,7 +158,6 @@ Deno.serve(async (req) => {
     if (action === 'submit_task') {
       const { user_id, task_id, image_url } = body;
       
-      // Check existing submission
       const { data: existing } = await supabase.from('task_submissions').select('id, status').eq('user_id', user_id).eq('task_id', task_id).single();
       if (existing && existing.status === 'approved') throw new Error('Already approved');
       if (existing && existing.status === 'pending') throw new Error('Already pending');
@@ -164,6 +167,14 @@ Deno.serve(async (req) => {
       } else {
         await supabase.from('task_submissions').insert({ user_id, task_id, image_url, status: 'pending' });
       }
+
+      // Notify admin about task submission
+      const { data: task } = await supabase.from('tasks').select('title, value').eq('id', task_id).single();
+      const { data: submitter } = await supabase.from('users').select('username, first_name').eq('id', user_id).single();
+      await notifyAdmin(
+        `📝 <b>New Task Submission!</b>\n\nUser: ${submitter?.first_name || 'N/A'} (@${submitter?.username || 'N/A'})\nTask: ${task?.title || 'Unknown'}\nValue: ${task?.value || 0} Doggy\n\n⏳ Waiting for review`,
+        LOVABLE_API_KEY, TELEGRAM_API_KEY
+      );
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -179,19 +190,14 @@ Deno.serve(async (req) => {
       const taskValue = Number((sub.tasks as any)?.value || 0);
       await supabase.from('users').update({ balance: Number(user?.balance || 0) + taskValue }).eq('id', sub.user_id);
 
-      // Notify user
       if (user?.telegram_id) {
-        await fetch(`${GATEWAY_URL}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: user.telegram_id,
-            text: `✅ Your task has been approved! +${taskValue} Doggy 🦴`,
-            reply_markup: JSON.stringify({
-              inline_keyboard: [[{ text: '💰 Open Mini App', web_app: { url: `https://id-preview--692f1497-b0d6-46f9-9739-0533255efe74.lovable.app` } }]],
-            }),
+        await sendTelegram('sendMessage', {
+          chat_id: user.telegram_id,
+          text: `✅ Your task has been approved! +${taskValue} Doggy 🦴`,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '💰 Open Mini App', web_app: { url: `https://doggy-cash-quest.lovable.app` } }]],
           }),
-        });
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -202,17 +208,13 @@ Deno.serve(async (req) => {
       await supabase.from('task_submissions').update({ status: 'rejected' }).eq('id', submission_id);
 
       if ((sub?.users as any)?.telegram_id) {
-        await fetch(`${GATEWAY_URL}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: (sub.users as any).telegram_id,
-            text: `❌ Your task submission was rejected. Try again!`,
-            reply_markup: JSON.stringify({
-              inline_keyboard: [[{ text: '🔄 Try Again', web_app: { url: `https://id-preview--692f1497-b0d6-46f9-9739-0533255efe74.lovable.app` } }]],
-            }),
+        await sendTelegram('sendMessage', {
+          chat_id: (sub.users as any).telegram_id,
+          text: `❌ Your task submission was rejected. Try again!`,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '🔄 Try Again', web_app: { url: `https://doggy-cash-quest.lovable.app` } }]],
           }),
-        });
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -225,32 +227,21 @@ Deno.serve(async (req) => {
       await supabase.from('withdrawals').update({ status: 'approved' }).eq('id', withdrawal_id);
       await supabase.from('users').update({ balance: Number((w.users as any)?.balance || 0) - Number(w.amount) }).eq('id', w.user_id);
 
-      // Notify user
       if ((w.users as any)?.telegram_id) {
-        await fetch(`${GATEWAY_URL}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: (w.users as any).telegram_id,
-            text: `✅ Your withdrawal of ${w.amount} Doggy ($${Number(w.usdt_amount).toFixed(4)} USDT) has been approved! 💰`,
-            reply_markup: JSON.stringify({
-              inline_keyboard: [[{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }]],
-            }),
+        await sendTelegram('sendMessage', {
+          chat_id: (w.users as any).telegram_id,
+          text: `✅ Your withdrawal of ${w.amount} Doggy ($${Number(w.usdt_amount).toFixed(4)} USDT) has been approved! 💰`,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }]],
           }),
-        });
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
-      // Post to payment channel
-      const ADMIN_CHAT_ID = '5419054691';
-      await fetch(`${GATEWAY_URL}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: ADMIN_CHAT_ID,
-          text: `💸 <b>Doggy Cash - New Withdrawal</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nBalance: ${w.amount} Doggy\nUSDT: $${Number(w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>\nStatus: ✅ Success`,
-          parse_mode: 'HTML',
-        }),
-      });
+      // Post to admin about approved withdrawal
+      await notifyAdmin(
+        `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nUSDT: $${Number(w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>\nStatus: ✅ Approved`,
+        LOVABLE_API_KEY, TELEGRAM_API_KEY
+      );
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -261,18 +252,37 @@ Deno.serve(async (req) => {
       await supabase.from('withdrawals').update({ status: 'rejected' }).eq('id', withdrawal_id);
 
       if ((w?.users as any)?.telegram_id) {
-        await fetch(`${GATEWAY_URL}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: (w.users as any).telegram_id,
-            text: `❌ Your withdrawal request was rejected. Please try again.`,
-            reply_markup: JSON.stringify({
-              inline_keyboard: [[{ text: '🔄 Try Again', web_app: { url: `https://id-preview--692f1497-b0d6-46f9-9739-0533255efe74.lovable.app` } }]],
-            }),
+        await sendTelegram('sendMessage', {
+          chat_id: (w.users as any).telegram_id,
+          text: `❌ Your withdrawal request was rejected. Please try again.`,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '🔄 Try Again', web_app: { url: `https://doggy-cash-quest.lovable.app` } }]],
           }),
-        });
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_ban_user') {
+      const { target_user_id } = body;
+      const { data: user } = await supabase.from('users').select('telegram_id, username, first_name').eq('id', target_user_id).single();
+      
+      await supabase.from('users').update({ banned: true }).eq('id', target_user_id);
+
+      // Notify admin
+      await notifyAdmin(
+        `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>`,
+        LOVABLE_API_KEY, TELEGRAM_API_KEY
+      );
+
+      // Notify user
+      if (user?.telegram_id) {
+        await sendTelegram('sendMessage', {
+          chat_id: user.telegram_id,
+          text: `🚫 Your Doggy Cash account has been suspended. Contact support if you believe this is an error.`,
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      }
+
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -291,21 +301,13 @@ Deno.serve(async (req) => {
             if (button_text && button_url) {
               msgBody.reply_markup = JSON.stringify({ inline_keyboard: [[{ text: button_text, url: button_url }]] });
             }
-            await fetch(`${GATEWAY_URL}/sendPhoto`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify(msgBody),
-            });
+            await sendTelegram('sendPhoto', msgBody, LOVABLE_API_KEY, TELEGRAM_API_KEY);
           } else {
             msgBody.text = text;
             if (button_text && button_url) {
               msgBody.reply_markup = JSON.stringify({ inline_keyboard: [[{ text: button_text, url: button_url }]] });
             }
-            await fetch(`${GATEWAY_URL}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify(msgBody),
-            });
+            await sendTelegram('sendMessage', msgBody, LOVABLE_API_KEY, TELEGRAM_API_KEY);
           }
           sent++;
         } catch { /* skip failed */ }

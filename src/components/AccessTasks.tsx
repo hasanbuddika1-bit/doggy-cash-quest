@@ -27,6 +27,7 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
   const [verifications, setVerifications] = useState<Record<string, boolean>>({});
   const [verifying, setVerifying] = useState<string | null>(null);
   const [botStarted, setBotStarted] = useState(false);
+  const [startingBot, setStartingBot] = useState(false);
   const [claimingBonus, setClaimingBonus] = useState(false);
   const telegramUser = getCurrentUser();
 
@@ -55,20 +56,20 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
     }
   }
 
-  async function handleVerify(channel: Channel) {
-    setVerifying(channel.id);
-    try {
-      const result = await verifyChannel(userId, channel.telegram_username, telegramUser.id);
-      if (result.verified) {
-        setVerifications(prev => ({ ...prev, [channel.id]: true }));
-        toast.success(`✅ ${channel.name} verified!`);
-      } else {
-        toast.error(`❌ Please join ${channel.name} first!`);
-      }
-    } catch {
-      toast.error("Verification failed. Try again!");
+  function handleStartBot() {
+    setStartingBot(true);
+    const webapp = getTelegramWebApp();
+    if (webapp) {
+      webapp.openTelegramLink("https://t.me/Goggycashbot?start=access");
+    } else {
+      window.open("https://t.me/Goggycashbot?start=access", "_blank");
     }
-    setVerifying(null);
+    // Auto-mark as done after a short delay (bot is started by opening the link)
+    setTimeout(() => {
+      setBotStarted(true);
+      setStartingBot(false);
+      toast.success("✅ Bot started!");
+    }, 2000);
   }
 
   function handleJoin(link: string) {
@@ -80,7 +81,23 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
     }
   }
 
-  const allVerified = channels.length > 0 && channels.every(ch => verifications[ch.id]);
+  async function handleVerify(channel: Channel) {
+    setVerifying(channel.id);
+    try {
+      const result = await verifyChannel(userId, channel.telegram_username, telegramUser.id);
+      if (result.verified) {
+        setVerifications(prev => ({ ...prev, [channel.id]: true }));
+        toast.success(`✅ ${channel.name} verified!`);
+      } else {
+        toast.error(`❌ Please join ${channel.name} first and then try again!`);
+      }
+    } catch {
+      toast.error("Verification failed. Try again!");
+    }
+    setVerifying(null);
+  }
+
+  const allVerified = channels.length > 0 && channels.every(ch => verifications[ch.id]) && botStarted;
 
   async function handleClaimBonus() {
     setClaimingBonus(true);
@@ -107,20 +124,27 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
       <div className="space-y-3 max-w-md mx-auto">
         {/* Start Bot */}
         <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl p-4 border border-border"
+          className={`bg-card rounded-xl p-4 border ${botStarted ? 'border-secondary/50' : 'border-border'}`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-2xl">🤖</span>
               <div>
                 <p className="font-semibold text-sm">Start Bot</p>
-                <p className="text-xs text-muted-foreground">Auto-verified</p>
+                <p className="text-xs text-muted-foreground">Open and start the bot</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-5 h-5 text-secondary" />
-              <span className="text-xs text-secondary font-bold">Done</span>
-            </div>
+            {botStarted ? (
+              <div className="flex items-center gap-1">
+                <Check className="w-5 h-5 text-secondary" />
+                <span className="text-xs text-secondary font-bold">Done</span>
+              </div>
+            ) : (
+              <Button size="sm" className="text-xs h-8 bg-gradient-gold text-primary-foreground" onClick={handleStartBot} disabled={startingBot}>
+                {startingBot ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ExternalLink className="w-3 h-3 mr-1" />}
+                Start
+              </Button>
+            )}
           </div>
         </motion.div>
 
