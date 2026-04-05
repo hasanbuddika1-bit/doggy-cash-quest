@@ -41,6 +41,42 @@ declare global {
   }
 }
 
+const TELEGRAM_WEB_APP_SCRIPT_URL = "https://telegram.org/js/telegram-web-app.js";
+let telegramScriptPromise: Promise<TelegramWebApp | null> | null = null;
+
+export async function ensureTelegramWebApp(): Promise<TelegramWebApp | null> {
+  if (typeof window === "undefined") return null;
+  if (window.Telegram?.WebApp) return window.Telegram.WebApp;
+
+  if (!telegramScriptPromise) {
+    telegramScriptPromise = new Promise((resolve) => {
+      const resolveWebApp = () => resolve(window.Telegram?.WebApp || null);
+      const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${TELEGRAM_WEB_APP_SCRIPT_URL}"]`);
+
+      if (existingScript) {
+        if (window.Telegram?.WebApp) {
+          resolveWebApp();
+          return;
+        }
+
+        existingScript.addEventListener("load", resolveWebApp, { once: true });
+        existingScript.addEventListener("error", () => resolve(null), { once: true });
+        window.setTimeout(resolveWebApp, 1500);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = TELEGRAM_WEB_APP_SCRIPT_URL;
+      script.async = true;
+      script.addEventListener("load", resolveWebApp, { once: true });
+      script.addEventListener("error", () => resolve(null), { once: true });
+      document.head.appendChild(script);
+    });
+  }
+
+  return telegramScriptPromise;
+}
+
 export function getTelegramWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp || null;
 }

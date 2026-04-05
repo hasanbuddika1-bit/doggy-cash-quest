@@ -4,7 +4,7 @@ import { Check, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { verifyChannel, claimWelcomeBonus } from "@/lib/api";
-import { getCurrentUser, getTelegramWebApp } from "@/lib/telegram";
+import { getCurrentUser, getTelegramUser, getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import logo from "@/assets/doggy-cash-logo.png";
 
@@ -82,12 +82,22 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
   }
 
   async function handleVerify(channel: Channel) {
+    const currentTelegramUser = getTelegramUser();
+    if (!currentTelegramUser) {
+      toast.error("Open this mini app inside Telegram to verify channels.");
+      return;
+    }
+
     setVerifying(channel.id);
     try {
-      const result = await verifyChannel(userId, channel.telegram_username, telegramUser.id);
+      const result = await verifyChannel(userId, channel.telegram_username, currentTelegramUser.id);
       if (result.verified) {
         setVerifications(prev => ({ ...prev, [channel.id]: true }));
         toast.success(`✅ ${channel.name} verified!`);
+      } else if (result.reason === "bot_missing_channel_access") {
+        toast.error("Channel verification is temporarily unavailable. Please try again soon.");
+      } else if (result.reason === "telegram_api_error") {
+        toast.error("Telegram verification failed. Please try again.");
       } else {
         toast.error(`❌ Please join ${channel.name} first and then try again!`);
       }
