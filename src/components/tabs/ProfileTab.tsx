@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Copy, Calendar, Edit, Save } from "lucide-react";
+import { Copy, Calendar, Edit, Save, MapPin, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,13 +22,17 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
     setEditing(false);
   }
 
+  const countryDisplay = user?.country && user.country !== 'UNKNOWN' 
+    ? `${getCountryFlag(user.country)} ${getCountryName(user.country)}`
+    : '🌍 Detecting...';
+
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">
       {/* Profile Card */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-2xl p-6 border border-border text-center"
+        className="bg-gradient-to-br from-[hsl(var(--doggy-gold))]/20 via-card to-[hsl(var(--doggy-orange))]/10 rounded-2xl p-6 border border-[hsl(var(--doggy-gold))]/30 text-center"
       >
-        <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 border-2 border-primary">
+        <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 border-3 border-[hsl(var(--doggy-gold))] glow-gold">
           {user?.photo_url ? (
             <img src={user.photo_url} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -37,15 +41,15 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
             </div>
           )}
         </div>
-        <p className="font-display font-bold text-lg">{user?.first_name || 'User'}</p>
+        <p className="font-display font-bold text-lg text-gradient-gold">{user?.first_name || 'User'}</p>
         <p className="text-sm text-muted-foreground">@{user?.username || 'anonymous'}</p>
         
         <div className="flex items-center justify-center gap-2 mt-2">
-          <span className="text-xs text-muted-foreground font-mono">ID: {user?.telegram_id}</span>
+          <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">ID: {user?.telegram_id}</span>
           <button onClick={() => {
             navigator.clipboard.writeText(String(user?.telegram_id || ''));
             toast.success("📋 ID copied!");
-          }}>
+          }} className="p-1 hover:bg-muted rounded">
             <Copy className="w-3 h-3 text-muted-foreground" />
           </button>
         </div>
@@ -54,14 +58,14 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
       {/* Info Cards */}
       <div className="grid grid-cols-2 gap-3">
         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl p-3 border border-border"
+          className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 rounded-xl p-3 border border-blue-500/20"
         >
-          <Calendar className="w-4 h-4 text-primary mb-1" />
+          <Calendar className="w-4 h-4 text-blue-400 mb-1" />
           <p className="text-[10px] text-muted-foreground">Joined</p>
           <p className="text-xs font-semibold">{user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</p>
         </motion.div>
         <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
-          className="bg-card rounded-xl p-3 border border-border"
+          className="bg-gradient-to-br from-amber-500/15 to-amber-500/5 rounded-xl p-3 border border-amber-500/20"
         >
           <span className="text-lg">🦴</span>
           <p className="text-[10px] text-muted-foreground">Balance</p>
@@ -69,20 +73,35 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
         </motion.div>
       </div>
 
-      {/* Wallet */}
+      {/* Country */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        className="bg-gradient-to-br from-green-500/15 to-green-500/5 rounded-xl p-3 border border-green-500/20"
+      >
+        <div className="flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-green-400" />
+          <div>
+            <p className="text-[10px] text-muted-foreground">Country</p>
+            <p className="text-xs font-semibold">{countryDisplay}</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Wallet */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
         className="bg-card rounded-xl p-4 border border-border"
       >
         <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-semibold">💼 Wallet Address</p>
-          <button onClick={() => setEditing(!editing)}>
+          <p className="text-sm font-bold flex items-center gap-1.5">
+            <Wallet className="w-4 h-4 text-amber-400" /> Wallet Address
+          </p>
+          <button onClick={() => setEditing(!editing)} className="p-1 hover:bg-muted rounded">
             <Edit className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
         {editing ? (
           <div className="flex gap-2">
             <Input value={wallet} onChange={(e) => setWallet(e.target.value)} className="h-9 text-xs" placeholder="USDT APTOS address" />
-            <Button size="sm" className="h-9" onClick={saveWallet}><Save className="w-3 h-3" /></Button>
+            <Button size="sm" className="h-9 bg-gradient-gold text-primary-foreground" onClick={saveWallet}><Save className="w-3 h-3" /></Button>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono break-all">{wallet || 'Not set'}</p>
@@ -90,23 +109,34 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
       </motion.div>
 
       {/* Stats Summary */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         className="bg-card rounded-xl p-4 border border-border"
       >
-        <p className="text-sm font-semibold mb-3">📊 Statistics</p>
+        <p className="text-sm font-bold mb-3">📊 Statistics</p>
         <div className="space-y-2">
           {[
-            { label: "Total Balance", value: `${balance.toFixed(0)} 🦴` },
-            { label: "USDT Value", value: `$${(balance * 0.0001).toFixed(4)}` },
-            { label: "Country", value: user?.country || "Unknown" },
+            { label: "Total Balance", value: `${balance.toFixed(0)} 🦴`, color: "text-[hsl(var(--doggy-gold))]" },
+            { label: "USDT Value", value: `$${(balance * 0.0001).toFixed(4)}`, color: "text-[hsl(var(--doggy-green))]" },
           ].map((stat) => (
             <div key={stat.label} className="flex justify-between text-xs">
               <span className="text-muted-foreground">{stat.label}</span>
-              <span className="font-semibold">{stat.value}</span>
+              <span className={`font-bold ${stat.color}`}>{stat.value}</span>
             </div>
           ))}
         </div>
       </motion.div>
     </div>
   );
+}
+
+function getCountryFlag(code: string): string {
+  if (!code || code === 'UNKNOWN') return '🌍';
+  const flags: Record<string, string> = { LK: '🇱🇰', US: '🇺🇸', IN: '🇮🇳', UK: '🇬🇧', GB: '🇬🇧', PK: '🇵🇰', BD: '🇧🇩', NP: '🇳🇵', PH: '🇵🇭', ID: '🇮🇩', MY: '🇲🇾', SG: '🇸🇬', AE: '🇦🇪', SA: '🇸🇦', NG: '🇳🇬', KE: '🇰🇪', ZA: '🇿🇦' };
+  return flags[code] || '🏳️';
+}
+
+function getCountryName(code: string): string {
+  if (!code || code === 'UNKNOWN') return 'Unknown';
+  const names: Record<string, string> = { LK: 'Sri Lanka', US: 'United States', IN: 'India', UK: 'United Kingdom', GB: 'United Kingdom', PK: 'Pakistan', BD: 'Bangladesh', NP: 'Nepal', PH: 'Philippines', ID: 'Indonesia', MY: 'Malaysia', SG: 'Singapore', AE: 'UAE', SA: 'Saudi Arabia', NG: 'Nigeria', KE: 'Kenya', ZA: 'South Africa' };
+  return names[code] || code;
 }

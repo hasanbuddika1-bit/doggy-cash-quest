@@ -1,19 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, MousePointerClick } from "lucide-react";
+import { Lock, Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, MousePointerClick, Gift, Users, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { processClick, claimRewardCode, claimReferralReward, submitTask } from "@/lib/api";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
+import { RewardPopup } from "@/components/RewardPopup";
 
 interface EarnTabProps {
   userId: string;
   telegramId: number;
 }
 
-const SUB_TABS = ["Watch Ads", "Tasks", "Clicks", "Refer", "Reward Code"];
+const SUB_TABS = [
+  { key: "Tasks", icon: "📋", color: "from-amber-500 to-orange-600" },
+  { key: "Clicks", icon: "👆", color: "from-green-500 to-emerald-600" },
+  { key: "Refer", icon: "👥", color: "from-blue-500 to-indigo-600" },
+  { key: "Reward Code", icon: "🎁", color: "from-purple-500 to-pink-600" },
+];
+
 const CLICK_LINKS = [
   "https://omg10.com/4/10176898",
   "https://omg10.com/4/10339385",
@@ -24,26 +31,47 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
 
   return (
     <div className="px-4 pt-4 pb-24">
+      {/* Header guide */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-[hsl(var(--doggy-gold))]/20 to-[hsl(var(--doggy-orange))]/20 rounded-2xl p-4 mb-4 border border-[hsl(var(--doggy-gold))]/30"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">💰</span>
+          <div>
+            <p className="font-display font-bold text-gradient-gold">Earn Doggy!</p>
+            <p className="text-xs text-muted-foreground">Complete tasks, click links & invite friends 🐾</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          <span className="text-[10px] bg-[hsl(var(--doggy-gold))]/20 text-[hsl(var(--doggy-gold))] px-2 py-0.5 rounded-full">🦴 Earn Bones</span>
+          <span className="text-[10px] bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2 py-0.5 rounded-full">⚡ Daily Rewards</span>
+          <span className="text-[10px] bg-[hsl(var(--doggy-orange))]/20 text-[hsl(var(--doggy-orange))] px-2 py-0.5 rounded-full">👋 Keep Going!</span>
+        </div>
+      </motion.div>
+
       {/* Sub-tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-3 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-hide">
         {SUB_TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setSubTab(tab)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-              subTab === tab
-                ? 'bg-gradient-gold text-primary-foreground'
-                : 'bg-card text-muted-foreground border border-border'
+          <motion.button
+            key={tab.key}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSubTab(tab.key)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              subTab === tab.key
+                ? `bg-gradient-to-r ${tab.color} text-white shadow-lg`
+                : 'bg-card text-muted-foreground border border-border hover:border-primary/50'
             }`}
           >
-            {tab}
-          </button>
+            <span>{tab.icon}</span>
+            {tab.key}
+          </motion.button>
         ))}
       </div>
 
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-          {subTab === "Watch Ads" && <WatchAdsSection />}
           {subTab === "Tasks" && <TasksSection userId={userId} />}
           {subTab === "Clicks" && <ClicksSection userId={userId} />}
           {subTab === "Refer" && <ReferSection userId={userId} telegramId={telegramId} />}
@@ -54,41 +82,30 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
   );
 }
 
-function WatchAdsSection() {
-  return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
-        <Lock className="w-16 h-16 text-muted-foreground" />
-      </motion.div>
-      <p className="text-lg font-display font-bold text-muted-foreground mt-4">Coming Soon</p>
-      <p className="text-sm text-muted-foreground">Watch ads to earn Doggy! 📺</p>
-    </div>
-  );
-}
-
 function TasksSection({ userId }: { userId: string }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Record<string, any>>({});
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
-  useEffect(() => {
-    loadTasks();
-    loadSubmissions();
-  }, []);
-
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     const { data } = await supabase.from("tasks").select("*").eq("active", true).order("created_at", { ascending: false });
     setTasks(data || []);
-  }
+  }, []);
 
-  async function loadSubmissions() {
+  const loadSubmissions = useCallback(async () => {
     const { data } = await supabase.from("task_submissions").select("*").eq("user_id", userId);
     if (data) {
       const map: Record<string, any> = {};
       data.forEach(s => { map[s.task_id] = s; });
       setSubmissions(map);
     }
-  }
+  }, [userId]);
+
+  useEffect(() => {
+    loadTasks();
+    loadSubmissions();
+  }, [loadTasks, loadSubmissions]);
 
   async function handleImageUpload(taskId: string, file: File) {
     const ext = file.name.split('.').pop();
@@ -105,27 +122,55 @@ function TasksSection({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-3">
+      <RewardPopup show={reward.show} amount={reward.amount} onClose={() => setReward({ show: false, amount: 0 })} />
+      
+      {/* Guide */}
+      <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
+        <p className="text-xs text-amber-300">📋 <b>How it works:</b> Complete tasks, upload proof screenshot, and earn Doggy after admin approval!</p>
+      </div>
+
       {tasks.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">No tasks available yet 📋</p>
+        <div className="text-center py-12">
+          <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
+            <span className="text-5xl">📋</span>
+          </motion.div>
+          <p className="text-muted-foreground mt-3">No tasks available yet</p>
+        </div>
       )}
-      {tasks.map((task) => {
+      {tasks.map((task, i) => {
         const sub = submissions[task.id];
         const isExpanded = expandedTask === task.id;
         return (
-          <motion.div key={task.id} layout className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="p-3 flex items-center justify-between">
-              <div className="flex-1">
-                <p className="font-semibold text-sm">{task.title}</p>
-                <p className="text-xs text-primary font-bold">+{task.value} 🦴</p>
+          <motion.div
+            key={task.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.05 }}
+            whileHover={{ scale: 1.01 }}
+            className={`bg-gradient-to-r from-card to-card/80 rounded-xl border overflow-hidden ${
+              sub?.status === 'approved' ? 'border-[hsl(var(--doggy-green))]/50' : 'border-border'
+            }`}
+          >
+            <div className="p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                  <span className="text-lg">📋</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{task.title}</p>
+                  <p className="text-xs font-bold text-gradient-gold">+{task.value} 🦴</p>
+                </div>
               </div>
               {sub?.status === 'approved' ? (
-                <span className="text-xs text-secondary font-bold flex items-center gap-1"><Check className="w-3 h-3" /> Done</span>
+                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-xs font-bold flex items-center gap-1 bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2.5 py-1 rounded-full">
+                  <Check className="w-3 h-3" /> Done
+                </motion.span>
               ) : sub?.status === 'pending' ? (
-                <span className="text-xs text-primary font-bold">⏳ Pending</span>
+                <span className="text-xs font-bold bg-primary/20 text-primary px-2.5 py-1 rounded-full">⏳ Pending</span>
               ) : sub?.status === 'rejected' ? (
-                <span className="text-xs text-destructive font-bold flex items-center gap-1"><X className="w-3 h-3" /> Rejected</span>
+                <span className="text-xs font-bold bg-destructive/20 text-destructive px-2.5 py-1 rounded-full flex items-center gap-1"><X className="w-3 h-3" /> Rejected</span>
               ) : (
-                <Button size="sm" className="h-7 text-xs bg-gradient-gold text-primary-foreground" onClick={() => setExpandedTask(isExpanded ? null : task.id)}>
+                <Button size="sm" className="h-8 text-xs bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0" onClick={() => setExpandedTask(isExpanded ? null : task.id)}>
                   <Play className="w-3 h-3 mr-1" /> Start
                 </Button>
               )}
@@ -133,20 +178,20 @@ function TasksSection({ userId }: { userId: string }) {
             <AnimatePresence>
               {isExpanded && !sub && (
                 <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
-                  <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+                  <div className="px-3.5 pb-3.5 space-y-2 border-t border-border pt-2">
                     {task.description && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{task.description}</p>}
                     {task.link && (
                       <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => {
                         const wa = getTelegramWebApp();
-                        wa ? wa.openLink(task.link) : window.open(task.link, "_blank");
+                        if (wa) { wa.openLink(task.link); } else { window.open(task.link, "_blank"); }
                       }}>
-                        <ExternalLink className="w-3 h-3 mr-1" /> Open
+                        <ExternalLink className="w-3 h-3 mr-1" /> Open Link
                       </Button>
                     )}
                     {task.requires_image && (
-                      <label className="flex items-center gap-2 bg-muted rounded-lg p-2 cursor-pointer">
-                        <Upload className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Upload screenshot</span>
+                      <label className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-3 cursor-pointer border border-dashed border-amber-500/30">
+                        <Upload className="w-5 h-5 text-amber-400" />
+                        <span className="text-xs text-amber-300 font-semibold">📷 Upload screenshot proof</span>
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                           const f = e.target.files?.[0];
                           if (f) handleImageUpload(task.id, f);
@@ -169,19 +214,9 @@ function ClicksSection({ userId }: { userId: string }) {
   const [timer, setTimer] = useState(0);
   const [clickHistory, setClickHistory] = useState<any[]>([]);
   const [canClick, setCanClick] = useState(true);
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
-  useEffect(() => {
-    loadClicks();
-  }, []);
-
-  useEffect(() => {
-    if (timer > 0) {
-      const interval = setInterval(() => setTimer(t => t - 1), 1000);
-      return () => clearInterval(interval);
-    }
-  }, [timer]);
-
-  async function loadClicks() {
+  const loadClicks = useCallback(async () => {
     const { data } = await supabase.from("clicks").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
     setClickHistory(data || []);
     if (data && data.length > 0) {
@@ -192,21 +227,29 @@ function ClicksSection({ userId }: { userId: string }) {
       const hourClicks = data.filter(c => new Date(c.created_at).getTime() > hourAgo).length;
       if (hourClicks >= 2) setCanClick(false);
     }
-  }
+  }, [userId]);
+
+  useEffect(() => { loadClicks(); }, [loadClicks]);
+
+  useEffect(() => {
+    if (timer > 0) {
+      const interval = setInterval(() => setTimer(t => t - 1), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [timer]);
 
   async function handleClick() {
     setLoading(true);
     const link = CLICK_LINKS[Math.floor(Math.random() * CLICK_LINKS.length)];
     const wa = getTelegramWebApp();
-    wa ? wa.openLink(link) : window.open(link, "_blank");
+    if (wa) { wa.openLink(link); } else { window.open(link, "_blank"); }
     
-    // Start 10s countdown
     setTimer(10);
     setTimeout(async () => {
       try {
         const result = await processClick(userId);
         if (result.success) {
-          toast.success(`+${result.earned} Doggy! 🦴`);
+          setReward({ show: true, amount: result.earned });
           setTimer(60);
           setCanClick(false);
           loadClicks();
@@ -220,34 +263,52 @@ function ClicksSection({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-2xl p-5 border border-border text-center">
-        <p className="text-xs text-muted-foreground mb-2">Earn per click</p>
-        <p className="text-3xl font-display font-bold text-gradient-gold">5 🦴</p>
-        <p className="text-xs text-muted-foreground mt-2">Max 2 clicks/hour • View 10s</p>
+      <RewardPopup show={reward.show} amount={reward.amount} onClose={() => setReward({ show: false, amount: 0 })} />
+
+      {/* Guide */}
+      <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
+        <p className="text-xs text-emerald-300">👆 <b>How it works:</b> Click the button, view the link for 10 seconds, then earn 5 Doggy! Max 2 clicks per hour.</p>
       </div>
 
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-br from-emerald-500/20 via-card to-green-500/10 rounded-2xl p-5 border border-emerald-500/30 text-center"
+      >
+        <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-4xl inline-block">👆</motion.span>
+        <p className="text-xs text-muted-foreground mb-1 mt-2">Earn per click</p>
+        <p className="text-3xl font-display font-bold text-gradient-gold">5 🦴</p>
+        <p className="text-xs text-muted-foreground mt-2">Max 2 clicks/hour • View 10s</p>
+      </motion.div>
+
       {timer > 0 ? (
-        <div className="bg-card rounded-xl p-4 border border-border text-center">
-          <Clock className="w-8 h-8 text-primary mx-auto mb-2" />
-          <p className="text-2xl font-display font-bold">{timer}s</p>
-          <p className="text-xs text-muted-foreground">{loading ? "Viewing link..." : "Wait before next click"}</p>
-        </div>
-      ) : (
-        <Button onClick={handleClick} disabled={!canClick || loading}
-          className="w-full h-14 bg-gradient-gold text-primary-foreground font-bold text-lg rounded-2xl glow-gold"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-gradient-to-br from-amber-500/10 to-card rounded-xl p-5 border border-amber-500/20 text-center"
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <MousePointerClick className="w-5 h-5 mr-2" />}
-          Click to Earn
-        </Button>
+          <Clock className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <p className="text-3xl font-display font-bold text-gradient-gold">{timer}s</p>
+          <p className="text-xs text-muted-foreground mt-1">{loading ? "⏳ Viewing link..." : "Wait before next click"}</p>
+        </motion.div>
+      ) : (
+        <motion.div whileTap={{ scale: 0.98 }}>
+          <Button onClick={handleClick} disabled={!canClick || loading}
+            className="w-full h-14 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-500/20 border-0"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <MousePointerClick className="w-5 h-5 mr-2" />}
+            Click to Earn
+          </Button>
+        </motion.div>
       )}
 
       {clickHistory.length > 0 && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-2">Recent Clicks</p>
+        <div className="bg-card rounded-xl p-3 border border-border">
+          <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Recent Clicks</p>
           {clickHistory.slice(0, 5).map((c) => (
-            <div key={c.id} className="flex justify-between py-1 text-xs text-muted-foreground">
-              <span>{new Date(c.created_at).toLocaleString()}</span>
-              <span className="text-secondary">+{c.earned} 🦴</span>
+            <div key={c.id} className="flex justify-between py-1.5 text-xs border-b border-border/50 last:border-0">
+              <span className="text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
+              <span className="text-[hsl(var(--doggy-green))] font-bold">+{c.earned} 🦴</span>
             </div>
           ))}
         </div>
@@ -256,23 +317,24 @@ function ClicksSection({ userId }: { userId: string }) {
   );
 }
 
-function ReferSection({ userId, telegramId }: { userId: string; telegramId: number }) {
+function ReferSection({ userId }: { userId: string; telegramId: number }) {
   const [referrals, setReferrals] = useState<any[]>([]);
   const [referBalance, setReferBalance] = useState(0);
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
-  useEffect(() => { loadReferrals(); }, []);
-
-  async function loadReferrals() {
+  const loadReferrals = useCallback(async () => {
     const { data } = await supabase.from("referrals").select("*").eq("referrer_id", userId);
     setReferrals(data || []);
     const unclaimed = (data || []).filter(r => r.verified && !r.reward_claimed);
     setReferBalance(unclaimed.reduce((sum: number, r: any) => sum + Number(r.reward_amount), 0));
-  }
+  }, [userId]);
 
-  async function handleClaim(referralId: string) {
+  useEffect(() => { loadReferrals(); }, [loadReferrals]);
+
+  async function handleClaim(referralId: string, amount: number) {
     try {
       await claimReferralReward(userId, referralId);
-      toast.success("🎉 Referral reward claimed!");
+      setReward({ show: true, amount });
       loadReferrals();
     } catch { toast.error("Claim failed"); }
   }
@@ -281,21 +343,33 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-2xl p-5 border border-border text-center">
-        <p className="text-xs text-muted-foreground mb-1">Refer Balance</p>
-        <p className="text-3xl font-display font-bold text-gradient-gold">{referBalance} 🦴</p>
-        <p className="text-xs text-muted-foreground mt-1">100 Doggy + 5% commission per referral</p>
+      <RewardPopup show={reward.show} amount={reward.amount} message="REFERRAL REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
+
+      {/* Guide */}
+      <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
+        <p className="text-xs text-blue-300">👥 <b>How it works:</b> Share your link, friends join & complete tasks → you earn 100 Doggy + 5% commission on their clicks!</p>
       </div>
 
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-br from-blue-500/20 via-card to-indigo-500/10 rounded-2xl p-5 border border-blue-500/30 text-center"
+      >
+        <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-4xl inline-block">👥</motion.span>
+        <p className="text-xs text-muted-foreground mb-1 mt-2">Refer Balance</p>
+        <p className="text-3xl font-display font-bold text-gradient-gold">{referBalance} 🦴</p>
+        <p className="text-xs text-muted-foreground mt-1">100 Doggy + 5% commission per referral</p>
+      </motion.div>
+
       <div className="bg-card rounded-xl p-3 border border-border">
-        <p className="text-xs text-muted-foreground mb-2">Your Referral Link</p>
+        <p className="text-xs text-muted-foreground mb-2 font-bold">🔗 Your Referral Link</p>
         <div className="flex gap-2">
-          <Input value={referLink} readOnly className="text-xs h-8" />
-          <Button size="sm" className="h-8" onClick={() => {
+          <Input value={referLink} readOnly className="text-xs h-9 bg-muted" />
+          <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0" onClick={() => {
             navigator.clipboard.writeText(referLink);
             toast.success("📋 Link copied!");
           }}>
-            <Copy className="w-3 h-3" />
+            <Copy className="w-3 h-3 mr-1" /> Copy
           </Button>
         </div>
       </div>
@@ -306,23 +380,32 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
       </div>
 
       <div>
-        <p className="text-xs text-muted-foreground mb-2 font-semibold">Referral History</p>
-        {referrals.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No referrals yet 🐕</p>}
+        <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Referral History ({referrals.length})</p>
+        {referrals.length === 0 && (
+          <div className="text-center py-8">
+            <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
+              <span className="text-4xl">🐕</span>
+            </motion.div>
+            <p className="text-xs text-muted-foreground mt-2">No referrals yet. Share your link!</p>
+          </div>
+        )}
         {referrals.map((r) => (
-          <div key={r.id} className="flex items-center justify-between bg-card rounded-lg p-2 border border-border mb-2">
+          <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+            className="flex items-center justify-between bg-card rounded-xl p-3 border border-border mb-2"
+          >
             <div>
-              <span className={`text-xs font-bold ${r.verified ? 'text-secondary' : 'text-primary'}`}>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.verified ? 'bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))]' : 'bg-primary/20 text-primary'}`}>
                 {r.verified ? '✅ Verified' : '⏳ Not Verified'}
               </span>
-              <p className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{new Date(r.created_at).toLocaleDateString()}</p>
             </div>
             {r.verified && !r.reward_claimed && (
-              <Button size="sm" className="h-6 text-[10px] bg-gradient-green text-secondary-foreground" onClick={() => handleClaim(r.id)}>
+              <Button size="sm" className="h-7 text-[10px] bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0" onClick={() => handleClaim(r.id, r.reward_amount)}>
                 Claim {r.reward_amount}🦴
               </Button>
             )}
-            {r.reward_claimed && <span className="text-[10px] text-secondary">Claimed ✓</span>}
-          </div>
+            {r.reward_claimed && <span className="text-[10px] text-[hsl(var(--doggy-green))] font-bold">✅ Claimed</span>}
+          </motion.div>
         ))}
       </div>
     </div>
@@ -333,13 +416,14 @@ function RewardCodeSection({ userId }: { userId: string }) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [claims, setClaims] = useState<any[]>([]);
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
-  useEffect(() => { loadClaims(); }, []);
-
-  async function loadClaims() {
+  const loadClaims = useCallback(async () => {
     const { data } = await supabase.from("reward_claims").select("*, reward_codes(code, value)").eq("user_id", userId);
     setClaims(data || []);
-  }
+  }, [userId]);
+
+  useEffect(() => { loadClaims(); }, [loadClaims]);
 
   async function handleClaim() {
     if (!code.trim()) return;
@@ -347,7 +431,7 @@ function RewardCodeSection({ userId }: { userId: string }) {
     try {
       const result = await claimRewardCode(userId, code.trim());
       if (result.success) {
-        toast.success(`🎁 +${result.amount} Doggy!`);
+        setReward({ show: true, amount: result.amount });
         setCode("");
         loadClaims();
       } else {
@@ -359,30 +443,42 @@ function RewardCodeSection({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <p className="text-sm font-semibold mb-2">🎁 Enter Reward Code</p>
-        <div className="flex gap-2">
-          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code..." className="h-10" />
-          <Button onClick={handleClaim} disabled={loading} className="h-10 bg-gradient-gold text-primary-foreground">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Claim"}
-          </Button>
-        </div>
+      <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
+
+      {/* Guide */}
+      <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20">
+        <p className="text-xs text-purple-300">🎁 <b>How it works:</b> Get reward codes from our community channel and enter them here to earn Doggy!</p>
       </div>
 
-      <Button variant="outline" className="w-full" onClick={() => {
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-br from-purple-500/20 via-card to-pink-500/10 rounded-xl p-4 border border-purple-500/30"
+      >
+        <p className="text-sm font-display font-bold text-gradient-gold mb-3">🎁 Enter Reward Code</p>
+        <div className="flex gap-2">
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code..." className="h-10 bg-background" />
+          <Button onClick={handleClaim} disabled={loading} className="h-10 bg-gradient-to-r from-purple-500 to-pink-600 text-white border-0 px-5">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4 mr-1" />}
+            Claim
+          </Button>
+        </div>
+      </motion.div>
+
+      <Button variant="outline" className="w-full border-purple-500/30 text-purple-300 hover:bg-purple-500/10" onClick={() => {
         const wa = getTelegramWebApp();
-        wa ? wa.openTelegramLink("https://t.me/doggycash12") : window.open("https://t.me/doggycash12", "_blank");
+        if (wa) { wa.openTelegramLink("https://t.me/doggycash12"); } else { window.open("https://t.me/doggycash12", "_blank"); }
       }}>
         📢 Get Codes from Community
       </Button>
 
       {claims.length > 0 && (
         <div>
-          <p className="text-xs text-muted-foreground mb-2 font-semibold">History</p>
+          <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Claim History</p>
           {claims.map((c) => (
-            <div key={c.id} className="flex justify-between bg-card rounded-lg p-2 border border-border mb-2">
-              <span className="text-xs font-mono">{(c.reward_codes as any)?.code}</span>
-              <span className="text-xs text-secondary">+{c.amount} 🦴</span>
+            <div key={c.id} className="flex justify-between bg-card rounded-xl p-3 border border-border mb-2">
+              <span className="text-xs font-mono font-bold">{(c.reward_codes as any)?.code}</span>
+              <span className="text-xs text-[hsl(var(--doggy-green))] font-bold">+{c.amount} 🦴</span>
             </div>
           ))}
         </div>
