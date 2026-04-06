@@ -15,9 +15,8 @@ interface EarnTabProps {
 
 const SUB_TABS = ["Watch Ads", "Tasks", "Clicks", "Refer", "Reward Code"];
 const CLICK_LINKS = [
-  "https://omg10.com/4/10532433",
-  "https://omg10.com/4/10487551",
-  "https://omg10.com/4/10473220",
+  "https://omg10.com/4/10176898",
+  "https://omg10.com/4/10339385",
 ];
 
 export function EarnTab({ userId, telegramId }: EarnTabProps) {
