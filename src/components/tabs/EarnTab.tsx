@@ -277,7 +277,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
     } catch { toast.error("Claim failed"); }
   }
 
-  const referLink = `https://t.me/Goggycashbot?start=ref_${userId}`;
+  const referLink = `https://t.me/Doggycash1bot?start=ref_${userId}`;
 
   return (
     <div className="space-y-4">

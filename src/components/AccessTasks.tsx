@@ -60,9 +60,9 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
     setStartingBot(true);
     const webapp = getTelegramWebApp();
     if (webapp) {
-      webapp.openTelegramLink("https://t.me/Goggycashbot?start=access");
+      webapp.openTelegramLink("https://t.me/Doggycash1bot?start=access");
     } else {
-      window.open("https://t.me/Goggycashbot?start=access", "_blank");
+      window.open("https://t.me/Doggycash1bot?start=access", "_blank");
     }
     // Auto-mark as done after a short delay (bot is started by opening the link)
     setTimeout(() => {
