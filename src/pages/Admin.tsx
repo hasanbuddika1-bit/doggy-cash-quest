@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { adminAction } from "@/lib/api";
 import { toast } from "sonner";
 
-const ADMIN_PASSWORD = "doggycash2024";
+const ADMIN_PASSWORD = "Aabbcc.123";
 
 export default function AdminPanel() {
   const [authed, setAuthed] = useState(false);
