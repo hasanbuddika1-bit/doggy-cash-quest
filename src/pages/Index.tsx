@@ -30,9 +30,11 @@ const Index = () => {
 
       setProgress(20);
 
+      let detectedCountry: string | null = null;
       try {
         const geo = await detectCountry();
-        setUserCountry(geo.country);
+        detectedCountry = geo.country;
+        setUserCountry(detectedCountry);
       } catch { /* ignore */ }
 
       setProgress(40);
