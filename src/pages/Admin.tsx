@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Users, ListTodo, Gift, ArrowDownToLine, Megaphone, Settings, Check, X, Loader2, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Megaphone, Settings, Check, X, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

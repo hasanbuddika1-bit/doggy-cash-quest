@@ -339,10 +339,7 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
     } catch { toast.error("Claim failed"); }
   }
 
-  // Use telegram_id as referral code for direct mini app opening
-  const telegramId = (referrals.length > 0 || true) ? userId : userId; // fallback
   const referLink = `https://t.me/Doggycash1bot?start=ref_${userId}`;
-
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} message="REFERRAL REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
