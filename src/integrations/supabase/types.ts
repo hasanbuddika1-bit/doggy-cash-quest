@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_watches: {
+        Row: {
+          ad_index: number
+          created_at: string
+          earned: number
+          id: string
+          user_id: string
+        }
+        Insert: {
+          ad_index: number
+          created_at?: string
+          earned?: number
+          id?: string
+          user_id: string
+        }
+        Update: {
+          ad_index?: number
+          created_at?: string
+          earned?: number
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_watches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           description: string | null
