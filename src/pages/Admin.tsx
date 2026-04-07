@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, ListTodo, Gift, ArrowDownToLine, Megaphone, Settings, ShieldCheck, Check, X, Loader2 } from "lucide-react";
+import { Users, ListTodo, Gift, ArrowDownToLine, Megaphone, Settings, Check, X, Loader2, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +40,8 @@ export default function AdminPanel() {
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
           <TabsTrigger value="withdrawals" className="text-xs">💸 Withdrawals</TabsTrigger>
           <TabsTrigger value="codes" className="text-xs">🎁 Codes</TabsTrigger>
-          <TabsTrigger value="broadcast" className="text-xs">📢 Broadcast</TabsTrigger>
+          <TabsTrigger value="channels" className="text-xs">📢 Channels</TabsTrigger>
+          <TabsTrigger value="broadcast" className="text-xs">📡 Broadcast</TabsTrigger>
           <TabsTrigger value="settings" className="text-xs">⚙️ Settings</TabsTrigger>
         </TabsList>
 
@@ -49,6 +50,7 @@ export default function AdminPanel() {
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
         <TabsContent value="withdrawals"><WithdrawalsTab /></TabsContent>
         <TabsContent value="codes"><CodesTab /></TabsContent>
+        <TabsContent value="channels"><ChannelsTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
         <TabsContent value="settings"><SettingsTab /></TabsContent>
       </Tabs>
@@ -83,9 +85,11 @@ function UsersTab() {
               <div>
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
+                <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'}</p>
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'}</p>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-col">
                 {u.banned ? (
                   <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
                     await supabase.from("users").update({ banned: false }).eq("id", u.id);
@@ -99,6 +103,15 @@ function UsersTab() {
                     toast.success("User banned");
                   }}>Ban</Button>
                 )}
+                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
+                  await supabase.from("users").update({ 
+                    access_tasks_completed: !u.access_tasks_completed 
+                  }).eq("id", u.id);
+                  loadUsers();
+                  toast.success(`Access tasks ${!u.access_tasks_completed ? 'completed' : 'reset'}`);
+                }}>
+                  {u.access_tasks_completed ? 'Reset Access' : 'Grant Access'}
+                </Button>
               </div>
             </div>
           </div>
@@ -147,10 +160,17 @@ function TasksTab() {
               <p className="text-sm font-semibold">{t.title}</p>
               <p className="text-xs text-primary">+{t.value} 🦴</p>
             </div>
-            <Button size="sm" variant={t.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
-              await supabase.from("tasks").update({ active: !t.active }).eq("id", t.id);
-              loadTasks();
-            }}>{t.active ? 'Disable' : 'Enable'}</Button>
+            <div className="flex gap-1">
+              <Button size="sm" variant={t.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
+                await supabase.from("tasks").update({ active: !t.active }).eq("id", t.id);
+                loadTasks();
+              }}>{t.active ? 'Disable' : 'Enable'}</Button>
+              <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
+                await supabase.from("tasks").delete().eq("id", t.id);
+                loadTasks();
+                toast.success("Task deleted");
+              }}><Trash2 className="w-3 h-3" /></Button>
+            </div>
           </div>
         </div>
       ))}
@@ -305,6 +325,85 @@ function CodesTab() {
             await supabase.from("reward_codes").update({ active: !c.active }).eq("id", c.id);
             loadCodes();
           }}>{c.active ? 'Deactivate' : 'Activate'}</Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChannelsTab() {
+  const [channels, setChannels] = useState<any[]>([]);
+  const [name, setName] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState("");
+  const [link, setLink] = useState("");
+  const [countryRestriction, setCountryRestriction] = useState("");
+
+  useEffect(() => { loadChannels(); }, []);
+
+  async function loadChannels() {
+    const { data } = await supabase.from("channels").select("*").order("sort_order");
+    setChannels(data || []);
+  }
+
+  async function addChannel() {
+    if (!name.trim() || !telegramUsername.trim() || !link.trim()) return;
+    await supabase.from("channels").insert({
+      name: name.trim(),
+      telegram_username: telegramUsername.trim().replace('@', ''),
+      link: link.trim(),
+      country_restriction: countryRestriction.trim() || null,
+      sort_order: channels.length + 1,
+    });
+    toast.success("Channel added!");
+    setName(""); setTelegramUsername(""); setLink(""); setCountryRestriction("");
+    loadChannels();
+  }
+
+  async function removeChannel(id: string) {
+    await supabase.from("channel_verifications").delete().eq("channel_id", id);
+    await supabase.from("channels").delete().eq("id", id);
+    toast.success("Channel removed!");
+    loadChannels();
+  }
+
+  async function toggleRequired(id: string, currentRequired: boolean) {
+    await supabase.from("channels").update({ required: !currentRequired }).eq("id", id);
+    loadChannels();
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <div className="bg-card rounded-xl p-3 border border-border space-y-2">
+        <p className="text-sm font-semibold">📢 Add Channel</p>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Channel name" className="h-8 text-xs" />
+        <Input value={telegramUsername} onChange={(e) => setTelegramUsername(e.target.value)} placeholder="Telegram username (without @)" className="h-8 text-xs" />
+        <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Channel link (https://t.me/...)" className="h-8 text-xs" />
+        <Input value={countryRestriction} onChange={(e) => setCountryRestriction(e.target.value)} placeholder="Country restriction (e.g. LK, leave empty for all)" className="h-8 text-xs" />
+        <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={addChannel}>
+          <Plus className="w-3 h-3 mr-1" /> Add Channel
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground font-bold">Channels ({channels.length})</p>
+      {channels.map((ch) => (
+        <div key={ch.id} className="bg-card rounded-lg p-3 border border-border">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold">{ch.name}</p>
+              <p className="text-xs text-muted-foreground">@{ch.telegram_username}</p>
+              <p className="text-[10px] text-muted-foreground">{ch.link}</p>
+              {ch.country_restriction && <p className="text-[10px] text-amber-400">🌍 {ch.country_restriction} only</p>}
+              <p className="text-[10px] text-muted-foreground">Required: {ch.required ? '✅' : '❌'}</p>
+            </div>
+            <div className="flex gap-1 flex-col">
+              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => toggleRequired(ch.id, ch.required)}>
+                {ch.required ? 'Disable' : 'Enable'}
+              </Button>
+              <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => removeChannel(ch.id)}>
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
         </div>
       ))}
     </div>
