@@ -67,6 +67,11 @@ const Index = () => {
       setUserId(result.user.id);
       setUser(result.user);
 
+      // Save detected country to user
+      if (detectedCountry && detectedCountry !== 'UNKNOWN' && result.user.id) {
+        await supabase.from("users").update({ country: detectedCountry }).eq("id", result.user.id);
+      }
+
       const { count: totalUsers } = await supabase.from("users").select("*", { count: "exact", head: true });
       const today = new Date();
       today.setHours(0, 0, 0, 0);
