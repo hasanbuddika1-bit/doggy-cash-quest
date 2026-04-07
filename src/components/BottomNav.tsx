@@ -8,6 +8,7 @@ interface BottomNavProps {
 
 const tabs = [
   { id: "home", icon: Home, label: "Home", emoji: "🏠" },
+  { id: "watchads", icon: Coins, label: "Ads", emoji: "📺" },
   { id: "earn", icon: Coins, label: "Earn", emoji: "💰" },
   { id: "withdraw", icon: ArrowDownToLine, label: "Withdraw", emoji: "💸" },
   { id: "profile", icon: User, label: "Profile", emoji: "👤" },

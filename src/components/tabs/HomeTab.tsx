@@ -1,13 +1,15 @@
 import { motion } from "framer-motion";
-import { Users, Wifi, CalendarPlus, Coins } from "lucide-react";
+import { Users, Wifi, CalendarPlus, Coins, Tv } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import logo from "@/assets/doggy-cash-logo.png";
 
 interface HomeTabProps {
   user: any;
   appStats: { totalUsers: number; onlineUsers: number; todayJoins: number; totalPaid: number };
+  onNavigate?: (tab: string) => void;
 }
 
-export function HomeTab({ user, appStats }: HomeTabProps) {
+export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
   const balance = Number(user?.balance || 0);
   const usdtValue = (balance * 0.0001).toFixed(4);
 
@@ -71,6 +73,22 @@ export function HomeTab({ user, appStats }: HomeTabProps) {
           {balance.toFixed(0)} 🦴
         </motion.p>
         <p className="text-sm text-muted-foreground mt-1">≈ ${usdtValue} USDT</p>
+      </motion.div>
+
+      {/* Watch Ads Button */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        <Button
+          onClick={() => onNavigate?.("watchads")}
+          className="w-full h-14 bg-gradient-to-r from-[hsl(var(--doggy-gold))] to-[hsl(var(--doggy-orange))] text-primary-foreground font-display font-bold text-lg rounded-2xl shadow-lg border-0"
+        >
+          <Tv className="w-5 h-5 mr-2" />
+          📺 Watch Ads & Earn
+        </Button>
       </motion.div>
 
       {/* User Stats */}

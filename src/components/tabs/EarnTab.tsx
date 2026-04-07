@@ -340,7 +340,6 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
   }
 
   const referLink = `https://t.me/Doggycash1bot?start=ref_${userId}`;
-
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} message="REFERRAL REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
