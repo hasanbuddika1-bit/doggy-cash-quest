@@ -6,6 +6,7 @@ import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { BottomNav } from "@/components/BottomNav";
 import { HomeTab } from "@/components/tabs/HomeTab";
 import { EarnTab } from "@/components/tabs/EarnTab";
+import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
@@ -24,13 +25,11 @@ const Index = () => {
 
   const initApp = useCallback(async () => {
     try {
-      // Init Telegram
       const webapp = await ensureTelegramWebApp();
       if (webapp) { webapp.ready(); webapp.expand(); }
 
       setProgress(20);
 
-      // Detect country
       try {
         const geo = await detectCountry();
         setUserCountry(geo.country);
@@ -38,12 +37,20 @@ const Index = () => {
 
       setProgress(40);
 
-      // Get or create user
       const telegramUser = getCurrentUser();
       const startParam = getStartParam();
       let referrerId: string | undefined;
+      
+      // Support both ref_<userId> and ref_<telegramId> formats
       if (startParam?.startsWith("ref_")) {
-        referrerId = startParam.replace("ref_", "");
+        const refValue = startParam.replace("ref_", "");
+        // If it's a numeric telegram_id, look up the user
+        if (/^\d+$/.test(refValue)) {
+          const { data: referrer } = await supabase.from("users").select("id").eq("telegram_id", Number(refValue)).single();
+          if (referrer) referrerId = referrer.id;
+        } else {
+          referrerId = refValue;
+        }
       }
 
       const result = await getOrCreateUser(
@@ -58,7 +65,6 @@ const Index = () => {
       setUserId(result.user.id);
       setUser(result.user);
 
-      // Load app stats
       const { count: totalUsers } = await supabase.from("users").select("*", { count: "exact", head: true });
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -73,7 +79,6 @@ const Index = () => {
 
       setProgress(100);
 
-      // Decide next state
       setTimeout(() => {
         if (result.user.access_tasks_completed && result.user.welcome_bonus_claimed) {
           setAppState("main");
@@ -114,7 +119,8 @@ const Index = () => {
       <AnimatedBackground />
       <div className="relative z-10">
         <AnimatePresence mode="wait">
-          {activeTab === "home" && <HomeTab key="home" user={user} appStats={appStats} />}
+          {activeTab === "home" && <HomeTab key="home" user={user} appStats={appStats} onNavigate={(tab) => setActiveTab(tab)} />}
+          {activeTab === "watchads" && <WatchAdsTab key="watchads" userId={userId} />}
           {activeTab === "earn" && <EarnTab key="earn" userId={userId} telegramId={user?.telegram_id} />}
           {activeTab === "withdraw" && <WithdrawTab key="withdraw" userId={userId} user={user} />}
           {activeTab === "profile" && <ProfileTab key="profile" user={user} userId={userId} />}

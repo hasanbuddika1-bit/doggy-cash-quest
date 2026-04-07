@@ -27,7 +27,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     
     if (data) {
       const map: Record<number, number> = {};
-      data.forEach((w: any) => {
+      data.forEach((w) => {
         if (!map[w.ad_index]) {
           map[w.ad_index] = new Date(w.created_at).getTime();
         }
@@ -41,7 +41,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
   function canWatchAd(adIndex: number): boolean {
     const lastWatch = watchedAds[adIndex];
     if (!lastWatch) return true;
-    return Date.now() - lastWatch >= 3600000; // 1 hour
+    return Date.now() - lastWatch >= 3600000;
   }
 
   function getCooldownSeconds(adIndex: number): number {
@@ -58,20 +58,16 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
 
     setWatchingAd(adIndex);
-    
-    // Simulate ad watching (Adsgram will replace this)
     toast.info("📺 Ad is loading... Please wait");
     
     setTimeout(async () => {
       try {
-        // Record ad watch and give reward
         await supabase.from("ad_watches").insert({
           user_id: userId,
           ad_index: adIndex,
           earned: AD_REWARD,
         });
 
-        // Update user balance
         const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
         if (user) {
           await supabase.from("users").update({ 
@@ -92,7 +88,6 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     <div className="px-4 pt-4 pb-24">
       <RewardPopup show={reward.show} amount={reward.amount} message="AD REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
 
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -107,7 +102,6 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
         </div>
       </motion.div>
 
-      {/* Ad Cards */}
       <div className="space-y-3">
         {Array.from({ length: AD_COUNT }).map((_, i) => {
           const adIndex = i + 1;
@@ -123,13 +117,13 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
               transition={{ delay: i * 0.05 }}
               whileHover={{ scale: 1.01 }}
               className={`bg-gradient-to-r from-card to-card/80 rounded-2xl border overflow-hidden ${
-                !available ? 'border-muted/30 opacity-70' : 'border-[hsl(var(--doggy-gold))]/30'
+                !available ? 'border-border opacity-70' : 'border-[hsl(var(--doggy-gold))]/30'
               }`}
             >
               <div className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center border border-amber-500/30">
-                    <span className="text-xl font-bold text-amber-400">AD</span>
+                    <span className="text-xl font-bold text-[hsl(var(--doggy-gold))]">AD</span>
                   </div>
                   <div>
                     <p className="font-display font-bold text-sm">Watch Ad #{adIndex}</p>
@@ -138,13 +132,13 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
                 </div>
 
                 {!available ? (
-                  <CooldownTimer seconds={cooldown} onComplete={() => loadWatchHistory()} />
+                  <CooldownTimer key={`timer-${adIndex}-${cooldown}`} seconds={cooldown} onComplete={loadWatchHistory} />
                 ) : (
                   <motion.div whileTap={{ scale: 0.95 }}>
                     <Button
                       onClick={() => handleWatchAd(adIndex)}
                       disabled={isWatching || watchingAd !== null}
-                      className="h-10 px-5 rounded-2xl bg-gradient-to-b from-[hsl(var(--doggy-green))] to-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-500/30 border-0"
+                      className="h-10 px-5 rounded-2xl bg-gradient-to-b from-[hsl(var(--doggy-green))] to-emerald-700 text-white font-bold text-sm shadow-lg border-0"
                     >
                       {isWatching ? (
                         <Loader2 className="w-4 h-4 animate-spin mr-1" />
@@ -171,12 +165,12 @@ function CooldownTimer({ seconds: initialSeconds, onComplete }: { seconds: numbe
     if (seconds <= 0) { onComplete(); return; }
     const interval = setInterval(() => {
       setSeconds(s => {
-        if (s <= 1) { onComplete(); return 0; }
+        if (s <= 1) { clearInterval(interval); onComplete(); return 0; }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [seconds, onComplete]);
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
