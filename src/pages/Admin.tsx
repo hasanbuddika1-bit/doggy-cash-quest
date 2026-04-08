@@ -35,7 +35,8 @@ export default function AdminPanel() {
       <Tabs defaultValue="users">
         <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-card">
           <TabsTrigger value="users" className="text-xs">👥 Users</TabsTrigger>
-          <TabsTrigger value="tasks" className="text-xs">📋 Tasks</TabsTrigger>
+          <TabsTrigger value="tasks" className="text-xs">📋 Admin Tasks</TabsTrigger>
+          <TabsTrigger value="tgtasks" className="text-xs">📢 TG Tasks</TabsTrigger>
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
           <TabsTrigger value="withdrawals" className="text-xs">💸 Withdrawals</TabsTrigger>
           <TabsTrigger value="codes" className="text-xs">🎁 Codes</TabsTrigger>
@@ -45,7 +46,8 @@ export default function AdminPanel() {
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
-        <TabsContent value="tasks"><TasksTab /></TabsContent>
+        <TabsContent value="tasks"><TasksTab taskType="admin_approve" /></TabsContent>
+        <TabsContent value="tgtasks"><TasksTab taskType="one_click" /></TabsContent>
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
         <TabsContent value="withdrawals"><WithdrawalsTab /></TabsContent>
         <TabsContent value="codes"><CodesTab /></TabsContent>
@@ -84,9 +86,9 @@ function UsersTab() {
               <div>
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
-                <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'}</p>
+                <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
               </div>
               <div className="flex gap-1 flex-col">
                 {u.banned ? (
@@ -120,35 +122,48 @@ function UsersTab() {
   );
 }
 
-function TasksTab() {
+function TasksTab({ taskType }: { taskType: string }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [link, setLink] = useState("");
   const [value, setValue] = useState("10");
+  const [telegramChannel, setTelegramChannel] = useState("");
 
-  useEffect(() => { loadTasks(); }, []);
+  useEffect(() => { loadTasks(); }, [taskType]);
 
   async function loadTasks() {
-    const { data } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("tasks").select("*").eq("task_type", taskType).order("created_at", { ascending: false });
     setTasks(data || []);
   }
 
   async function createTask() {
     if (!title.trim()) return;
-    await supabase.from("tasks").insert({ title, description, link, value: Number(value) });
+    const insertData: any = { title, description, link, value: Number(value), task_type: taskType };
+    if (taskType === 'one_click') {
+      insertData.telegram_channel = telegramChannel.trim().replace('@', '');
+      insertData.requires_image = false;
+    }
+    await supabase.from("tasks").insert(insertData);
     toast.success("Task created!");
-    setTitle(""); setDescription(""); setLink(""); setValue("10");
+    setTitle(""); setDescription(""); setLink(""); setValue("10"); setTelegramChannel("");
     loadTasks();
   }
 
   return (
     <div className="space-y-3 mt-3">
       <div className="bg-card rounded-xl p-3 border border-border space-y-2">
-        <p className="text-sm font-semibold">Create Task</p>
+        <p className="text-sm font-semibold">{taskType === 'one_click' ? '📢 Create Telegram Task' : '📋 Create Admin Task'}</p>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 text-xs" />
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="text-xs min-h-[60px]" />
-        <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Task link" className="h-8 text-xs" />
+        {taskType === 'one_click' ? (
+          <>
+            <Input value={telegramChannel} onChange={(e) => setTelegramChannel(e.target.value)} placeholder="Telegram channel username (without @)" className="h-8 text-xs" />
+            <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Channel link (https://t.me/...)" className="h-8 text-xs" />
+          </>
+        ) : (
+          <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Task link" className="h-8 text-xs" />
+        )}
         <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Doggy value" className="h-8 text-xs" />
         <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={createTask}>Create Task</Button>
       </div>
@@ -158,6 +173,7 @@ function TasksTab() {
             <div>
               <p className="text-sm font-semibold">{t.title}</p>
               <p className="text-xs text-primary">+{t.value} 🦴</p>
+              {t.telegram_channel && <p className="text-[10px] text-muted-foreground">@{t.telegram_channel}</p>}
             </div>
             <div className="flex gap-1">
               <Button size="sm" variant={t.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
@@ -256,7 +272,8 @@ function WithdrawalsTab() {
           <div className="flex justify-between">
             <div>
               <p className="text-xs font-semibold">@{(w.users as any)?.username}</p>
-              <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🦴 = ${Number(w.usdt_amount).toFixed(4)}</p>
+              <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🦴</p>
+              <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}</p>
               <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
               <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
             </div>
