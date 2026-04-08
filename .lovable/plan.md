@@ -1,146 +1,38 @@
 
+# Doggy Cash Major Update Plan
 
-# Doggy Cash 🐶💰 - Telegram Mini App
+## Phase 1: Core Systems
+1. **Adsgram Ad Integration** — Integrate Adsgram SDK (blocks 27102 for auto-play, 27106 for Watch Ads tab). Auto-play ad 3s after app open, then every 25-50s. Watch Ads: if ad closed before 30-34s, show error popup (like screenshot), no reward.
+2. **Per-Ad Reward Values** — Each of the 10 ad slots gets its own configurable reward value (admin panel setting).
+3. **Daily Reset at 12:00:00** — All daily counters (ads watched, clicks) reset at midnight.
 
-## Overview
-A gamified Telegram Mini App where users earn "Doggy" tokens through tasks, clicks, referrals, and reward codes, then withdraw as USDT (APTOS network). Features a playful, game-like UI with animations throughout.
+## Phase 2: Fraud Prevention
+4. **IP-based Duplicate Detection** — Store user IP on registration. If same IP creates another account, auto-ban the new one, keep the first. Send Telegram notify to admin. Show ban reason to user.
+5. **VPN Detection** — If VPN detected during registration, show warning to turn off VPN.
+6. **Same-IP Referral Block** — Don't give referral bonus if same IP.
+7. **Banned User Lockout** — Banned users see error screen with reason, can't do anything.
 
-## Design & Theme
-- **Game-like aesthetic**: Warm orange/gold/green color palette matching the Doggy Cash logo
-- **Animated backgrounds**: Floating coins, sparkles, paw prints
-- **Card animations**: Slide-in, bounce, glow effects on all cards
-- **Pop notifications**: Animated toasts with emojis for all actions
-- **The uploaded logo** will be used as the app branding throughout
+## Phase 3: Task System Split
+8. **Two Task Types** — Split tasks into "Admin Approve" (current system with image proof) and "One-Click Telegram Tasks" (join channel → verify via bot → auto reward).
+9. **Admin Panel** — Separate task creation for both types.
 
----
+## Phase 4: Withdrawal Updates
+10. **Withdrawal Requirements** — Must actually check: daily ads watched (10), daily clicks (3), total referrals (2). These must work with real data.
+11. **Watch 2 Ads Before Withdraw** — Require watching 2 ads before submitting withdrawal request.
+12. **Max Withdraw 0.1 USDT** — Cap withdrawal at 0.1 USDT equivalent.
+13. **Withdrawal Fee** — 0.01 USDT + 2% fee. Show fee-deducted amount in history and notifications.
+14. **Withdraw History** — Show complete history with fees.
 
-## Phase 1: Foundation & Loading
+## Phase 5: Referral Fix
+15. **Direct Mini App Open** — Refer link opens mini app directly, detect referrer from start param.
 
-### Loading Screen
-- Full-screen animated splash with the Doggy Cash logo
-- Logo bounces in with coin rain animation and sparkle effects
-- Progress bar underneath, transitions to access tasks
+## Phase 6: UI Additions
+16. **Stats Counting** — Show real counts for refers, ads, clicks, tasks on home/profile.
+17. **"Our Other Mini Apps"** section on Home — Free Dogs Pay + Free TRX Pay links.
 
-### Access Tasks (Onboarding Gate)
-Before accessing the app, users must complete these steps in order:
-
-1. **Start Bot** - Auto-verify that user started the bot
-2. **Join Channels** - Each channel shows with a "Join" button → opens link → "Verify" button checks membership via bot API:
-   - Community (https://t.me/doggycash12)
-   - Free TRX Pay (https://t.me/freedogspay)
-   - Free Dogs Pay (https://t.me/bluetonearn)
-   - Payment (https://t.me/bluetonpayment)
-   - Panda Technic (https://t.me/panda_technic) — **shown only to Sri Lankan users** (IP geolocation check)
-3. **Claim Welcome Bonus** button appears after all channels verified
-   - Triggers a welcome message via bot to user (with image, bot description, "Earn Doggy" and "Community" buttons)
-   - Awards **50 Doggy** with animated pop-up celebration
-   - Redirects to Home
-
----
-
-## Phase 2: Main App (4 Bottom Tabs)
-
-### Tab 1: 🏠 Home
-- **User profile**: Telegram profile photo + username (top)
-- **Doggy Balance**: Large animated counter + USDT equivalent (100 Doggy = 0.01 USDT)
-- **User Stats Cards**: Total Earn, Total Withdraw, Total Ads, Total Clicks
-- **App Statistics Cards**: Total Users, Online Users, Today Joins, Total Paid Doggy
-
-### Tab 2: 💰 Earn Doggy
-Sub-tabs:
-
-**Watch Ads** — "Coming Soon" badge with animated lock icon
-
-**Tasks** — Admin-created tasks list:
-- Task title + value + "Start" button
-- Start → expands description → "Open" button (opens task link) → Image upload for proof
-- Admin approves/rejects from admin panel
-- On approve: balance updates, bot notification with "Open Mini App" button
-- On reject: bot notification with retry option
-
-**Clicks** — Link clicking earnings:
-- Click button opens random link from the 3 provided URLs
-- Must view for 10 seconds to earn 5 Doggy
-- Max 2 clicks per hour, 1-minute cooldown between clicks
-- Timer/countdown UI
-
-**Refer** — Referral system:
-- Refer balance display + claim button
-- 100 Doggy per verified referral + 5% commission on referral earnings
-- Referral verifies only after completing access tasks
-- Refer history with Not Verified / Verified status
-- Warning about multi-account/VPN = auto-ban
-- Bot notifications for referral status changes
-
-**Reward Code** — Code redemption:
-- Input field to enter code + Claim button
-- "Get codes from Community" button → opens community channel
-- Redemption history
-- Codes managed from admin panel (code, value, user count, active/deactive)
-
-### Tab 3: 💸 Withdraw
-- Available balance display (Doggy + USDT equivalent)
-- Wallet address input (USDT APTOS network) — saves & auto-fills
-- Amount input + Withdraw button
-- **Requirements check** (shown clearly):
-  - Daily watch ads: 10
-  - Daily clicks: 3
-  - Total referrals: 2
-  - Minimum: 500 Doggy
-  - No pending withdrawal allowed
-- Withdraw history with status
-- Notifications: user gets bot notification, admin gets notification
-- On approve: user notified with Payment channel button, bot posts to Payment channel
-- On reject: user notified with "Try Again" button → opens mini app
-
-### Tab 4: 👤 Profile
-- Profile photo, username, user ID (with copy button)
-- Join date
-- User statistics summary
-- Wallet address (editable)
-
----
-
-## Phase 3: Admin Panel (/admin route)
-
-Password-protected admin dashboard:
-
-- **User Management**: View all users, search, leaderboard, ban users
-- **Task Management**: Create/edit/delete tasks (title, description, link, value, image requirement), approve/reject submissions
-- **Reward Codes**: Create codes with value, usage limit, activate/deactivate
-- **Withdraw Management**: View requests, approve/reject, history
-- **Broadcast**: Send message to all users (text + image + buttons with links)
-- **Channel Management**: Edit required channels
-- **Settings**: Edit withdraw requirements, click rewards, referral rewards
-- **App Stats Dashboard**: Overview of all metrics
-
----
-
-## Phase 4: Backend (Lovable Cloud)
-
-### Database Tables
-- `users` — telegram_id, username, photo, balance, wallet_address, join_date, banned, country
-- `channel_verifications` — user/channel join status
-- `tasks` — admin-created tasks
-- `task_submissions` — user submissions with image + status
-- `clicks` — click tracking with timestamps
-- `referrals` — referrer/referee + status + commission
-- `reward_codes` — codes + values + limits
-- `reward_claims` — redemption history
-- `withdrawals` — amount, status, wallet, timestamps
-- `app_settings` — configurable settings
-- `user_roles` — admin role management
-
-### Edge Functions
-- `telegram-bot` — Handle bot commands, send notifications, verify channel membership
-- `verify-channel` — Check if user joined a channel via Telegram Bot API
-- `geo-detect` — IP-based country detection for Sri Lanka filtering
-- `process-click` — Validate click timing, cooldowns, award Doggy
-- `process-withdrawal` — Validate requirements, create request
-- `admin-broadcast` — Send bulk notifications
-
-### Telegram Bot Integration
-- Using the provided bot token via Telegram connector gateway
-- Bot sends welcome messages, task notifications, withdrawal updates
-- Channel membership verification via getChatMember API
-
+## Database Changes Needed
+- Add `ip_address` column to `users` table
+- Add `reward_value` column to `ad_watches` or use per-slot settings
+- Add task type column (`admin_approve` / `one_click`) to `tasks` table
+- Add `telegram_task_channel` column to `tasks` for one-click tasks
+- Add withdrawal fee settings to `app_settings`

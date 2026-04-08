@@ -38,6 +38,12 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  // Get client IP
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() 
+    || req.headers.get('x-real-ip') 
+    || req.headers.get('cf-connecting-ip') 
+    || 'unknown';
+
   try {
     const body = await req.json();
     const { action } = body;
@@ -48,14 +54,49 @@ Deno.serve(async (req) => {
       let { data: user } = await supabase.from('users').select('*').eq('telegram_id', telegram_id).single();
       
       if (!user) {
-        const insertData: any = { telegram_id, username, first_name, photo_url };
-        if (referrer_id) insertData.referrer_id = referrer_id;
+        // Check for same IP — fraud detection
+        let sameIpReferralBlock = false;
+        if (clientIp && clientIp !== 'unknown') {
+          const { data: existingUsers } = await supabase.from('users').select('id, telegram_id, banned').eq('ip_address', clientIp).limit(5);
+          
+          if (existingUsers && existingUsers.length > 0) {
+            // Same IP already has accounts — block referral bonus and auto-ban new account
+            sameIpReferralBlock = true;
+            
+            // Check if it looks like VPN (multiple different telegram_ids from same IP)
+            if (existingUsers.length >= 2) {
+              // Auto-ban new account after creation
+            }
+          }
+        }
+
+        const insertData: any = { telegram_id, username, first_name, photo_url, ip_address: clientIp };
+        if (referrer_id && !sameIpReferralBlock) insertData.referrer_id = referrer_id;
         
         const { data: newUser, error } = await supabase.from('users').insert(insertData).select().single();
         if (error) throw error;
         user = newUser;
 
-        if (referrer_id) {
+        // If same IP has existing accounts, auto-ban this one
+        if (sameIpReferralBlock) {
+          const { data: existingUsers } = await supabase.from('users').select('id').eq('ip_address', clientIp).neq('id', user.id);
+          if (existingUsers && existingUsers.length > 0) {
+            await supabase.from('users').update({ banned: true }).eq('id', user.id);
+            user.banned = true;
+            
+            await notifyAdmin(
+              `🚫 <b>Auto-Ban: Same IP Detected!</b>\n\nNew: ${first_name || 'N/A'} (@${username || 'N/A'})\nTelegram ID: <code>${telegram_id}</code>\nIP: <code>${clientIp}</code>\nExisting accounts on this IP: ${existingUsers.length}\n\n⚠️ Referral bonus blocked, account banned.`,
+              LOVABLE_API_KEY, TELEGRAM_API_KEY
+            );
+
+            await sendTelegram('sendMessage', {
+              chat_id: telegram_id,
+              text: `🚫 Your account has been suspended.\n\nReason: Multiple accounts detected from the same network.\n\nPlease disable VPN and use only one account.`,
+            }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+          }
+        }
+
+        if (referrer_id && !sameIpReferralBlock) {
           await supabase.from('referrals').insert({
             referrer_id,
             referee_id: user.id,
@@ -65,11 +106,12 @@ Deno.serve(async (req) => {
 
         // Notify admin about new user
         await notifyAdmin(
-          `👤 <b>New User Joined!</b>\n\nName: ${first_name || 'N/A'}\nUsername: @${username || 'N/A'}\nTelegram ID: <code>${telegram_id}</code>${referrer_id ? '\n📎 Referred by: ' + referrer_id : ''}`,
+          `👤 <b>New User Joined!</b>\n\nName: ${first_name || 'N/A'}\nUsername: @${username || 'N/A'}\nTelegram ID: <code>${telegram_id}</code>\nIP: <code>${clientIp}</code>${referrer_id && !sameIpReferralBlock ? '\n📎 Referred by: ' + referrer_id : ''}${sameIpReferralBlock ? '\n⚠️ Same IP - Referral blocked' : ''}`,
           LOVABLE_API_KEY, TELEGRAM_API_KEY
         );
       } else {
-        await supabase.from('users').update({ username, first_name, photo_url }).eq('id', user.id);
+        // Update existing user IP
+        await supabase.from('users').update({ username, first_name, photo_url, ip_address: clientIp }).eq('id', user.id);
       }
 
       return new Response(JSON.stringify({ user }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -81,6 +123,7 @@ Deno.serve(async (req) => {
       const { data: user } = await supabase.from('users').select('*').eq('id', user_id).single();
       if (!user) throw new Error('User not found');
       if (user.welcome_bonus_claimed) throw new Error('Already claimed');
+      if (user.banned) throw new Error('Account suspended');
 
       const { data: setting } = await supabase.from('app_settings').select('value').eq('key', 'welcome_bonus').single();
       const bonusAmount = Number(setting?.value || 50);
@@ -93,7 +136,7 @@ Deno.serve(async (req) => {
 
       await sendTelegram('sendMessage', {
         chat_id: telegram_id,
-        text: `🎉 <b>Welcome to Doggy Cash!</b> 🐶💰\n\nYou've earned <b>${bonusAmount} Doggy</b> as a welcome bonus!\n\n🦴 Earn more by completing tasks, clicking links, and referring friends!\n💰 100 Doggy = 0.01 USDT\n\nStart earning now! 🚀`,
+        text: `🎉 <b>Welcome to Doggy Cash, ${user.first_name || 'Friend'}!</b> 🐶💰\n\nYou've earned <b>${bonusAmount} Doggy</b> as a welcome bonus!\n\n🦴 Earn more by completing tasks, clicking links, and referring friends!\n💰 100 Doggy = 0.01 USDT\n\nStart earning now! 🚀`,
         parse_mode: 'HTML',
         reply_markup: JSON.stringify({
           inline_keyboard: [
@@ -112,7 +155,7 @@ Deno.serve(async (req) => {
         if (referrer) {
           await sendTelegram('sendMessage', {
             chat_id: referrer.telegram_id,
-            text: `✅ Your referral has been verified! Claim your reward in the app. 🎁`,
+            text: `✅ Your referral <b>${user.first_name || 'someone'}</b> has been verified! Claim your reward in the app. 🎁`,
             parse_mode: 'HTML',
           }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         }
@@ -168,7 +211,6 @@ Deno.serve(async (req) => {
         await supabase.from('task_submissions').insert({ user_id, task_id, image_url, status: 'pending' });
       }
 
-      // Notify admin about task submission
       const { data: task } = await supabase.from('tasks').select('title, value').eq('id', task_id).single();
       const { data: submitter } = await supabase.from('users').select('username, first_name').eq('id', user_id).single();
       await notifyAdmin(
@@ -228,18 +270,18 @@ Deno.serve(async (req) => {
       await supabase.from('users').update({ balance: Number((w.users as any)?.balance || 0) - Number(w.amount) }).eq('id', w.user_id);
 
       if ((w.users as any)?.telegram_id) {
+        const netAmount = Number(w.net_usdt || w.usdt_amount);
         await sendTelegram('sendMessage', {
           chat_id: (w.users as any).telegram_id,
-          text: `✅ Your withdrawal of ${w.amount} Doggy ($${Number(w.usdt_amount).toFixed(4)} USDT) has been approved! 💰`,
+          text: `✅ Your withdrawal of ${w.amount} Doggy has been approved!\n\n💰 Net amount: $${netAmount.toFixed(4)} USDT\n📤 To: ${w.wallet_address}`,
           reply_markup: JSON.stringify({
             inline_keyboard: [[{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }]],
           }),
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
-      // Post to admin about approved withdrawal
       await notifyAdmin(
-        `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nUSDT: $${Number(w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>\nStatus: ✅ Approved`,
+        `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nNet USDT: $${Number(w.net_usdt || w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
@@ -269,13 +311,11 @@ Deno.serve(async (req) => {
       
       await supabase.from('users').update({ banned: true }).eq('id', target_user_id);
 
-      // Notify admin
       await notifyAdmin(
         `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
-      // Notify user
       if (user?.telegram_id) {
         await sendTelegram('sendMessage', {
           chat_id: user.telegram_id,

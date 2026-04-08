@@ -350,6 +350,8 @@ export type Database = {
           id: string
           link: string | null
           requires_image: boolean
+          task_type: string
+          telegram_channel: string | null
           title: string
           updated_at: string
           value: number
@@ -361,6 +363,8 @@ export type Database = {
           id?: string
           link?: string | null
           requires_image?: boolean
+          task_type?: string
+          telegram_channel?: string | null
           title: string
           updated_at?: string
           value?: number
@@ -372,6 +376,8 @@ export type Database = {
           id?: string
           link?: string | null
           requires_image?: boolean
+          task_type?: string
+          telegram_channel?: string | null
           title?: string
           updated_at?: string
           value?: number
@@ -413,6 +419,7 @@ export type Database = {
           created_at: string
           first_name: string | null
           id: string
+          ip_address: string | null
           photo_url: string | null
           referrer_id: string | null
           telegram_id: number
@@ -429,6 +436,7 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          ip_address?: string | null
           photo_url?: string | null
           referrer_id?: string | null
           telegram_id: number
@@ -445,6 +453,7 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          ip_address?: string | null
           photo_url?: string | null
           referrer_id?: string | null
           telegram_id?: number
@@ -468,7 +477,9 @@ export type Database = {
           admin_note: string | null
           amount: number
           created_at: string
+          fee_usdt: number
           id: string
+          net_usdt: number
           status: Database["public"]["Enums"]["withdraw_status"]
           updated_at: string
           usdt_amount: number
@@ -479,7 +490,9 @@ export type Database = {
           admin_note?: string | null
           amount: number
           created_at?: string
+          fee_usdt?: number
           id?: string
+          net_usdt?: number
           status?: Database["public"]["Enums"]["withdraw_status"]
           updated_at?: string
           usdt_amount: number
@@ -490,7 +503,9 @@ export type Database = {
           admin_note?: string | null
           amount?: number
           created_at?: string
+          fee_usdt?: number
           id?: string
+          net_usdt?: number
           status?: Database["public"]["Enums"]["withdraw_status"]
           updated_at?: string
           usdt_amount?: number

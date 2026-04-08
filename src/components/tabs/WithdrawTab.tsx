@@ -18,13 +18,54 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [hasPending, setHasPending] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [stats, setStats] = useState({ dailyAds: 0, dailyClicks: 0, totalRefs: 0 });
 
   const balance = Number(user?.balance || 0);
-  const usdtAmount = (Number(amount || 0) * 0.0001).toFixed(4);
+  const rate = Number(settings.doggy_to_usdt_rate || 0.0001);
+  const feeFixed = Number(settings.withdraw_fee_fixed || 0.01);
+  const feePercent = Number(settings.withdraw_fee_percent || 2);
+  const maxWithdrawUsdt = Number(settings.max_withdraw_usdt || 0.1);
+  const dailyAdsReq = Number(settings.daily_ads_required || 10);
+  const dailyClicksReq = Number(settings.daily_clicks_required || 3);
+  const totalRefReq = Number(settings.total_referrals_required || 2);
+  const withdrawAdsReq = Number(settings.withdraw_ads_required || 2);
+
+  const rawUsdt = Number(amount || 0) * rate;
+  const fee = feeFixed + (rawUsdt * feePercent / 100);
+  const netUsdt = Math.max(0, rawUsdt - fee);
+  const maxDoggy = Math.floor(maxWithdrawUsdt / rate);
 
   useEffect(() => {
     loadHistory();
+    loadSettings();
+    loadStats();
   }, []);
+
+  async function loadSettings() {
+    const { data } = await supabase.from("app_settings").select("key, value");
+    const map: Record<string, string> = {};
+    (data || []).forEach(s => { map[s.key] = s.value; });
+    setSettings(map);
+  }
+
+  async function loadStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString();
+
+    const [adsRes, clicksRes, refsRes] = await Promise.all([
+      supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
+      supabase.from("clicks").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("verified", true),
+    ]);
+
+    setStats({
+      dailyAds: adsRes.count || 0,
+      dailyClicks: clicksRes.count || 0,
+      totalRefs: refsRes.count || 0,
+    });
+  }
 
   async function loadHistory() {
     const { data } = await supabase.from("withdrawals").select("*").eq("user_id", userId).order("created_at", { ascending: false });
@@ -39,9 +80,15 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
   async function handleWithdraw() {
     if (!walletAddress.trim()) { toast.error("Enter wallet address"); return; }
-    if (Number(amount) < 500) { toast.error("Minimum 500 Doggy"); return; }
+    const minAmount = Number(settings.min_withdraw || 500);
+    if (Number(amount) < minAmount) { toast.error(`Minimum ${minAmount} Doggy`); return; }
     if (Number(amount) > balance) { toast.error("Insufficient balance"); return; }
+    if (Number(amount) > maxDoggy) { toast.error(`Maximum ${maxDoggy} Doggy (${maxWithdrawUsdt} USDT)`); return; }
     if (hasPending) { toast.error("You have a pending withdrawal"); return; }
+    if (stats.dailyAds < withdrawAdsReq) { toast.error(`Watch at least ${withdrawAdsReq} ads before withdrawing`); return; }
+    if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads watched`); return; }
+    if (stats.dailyClicks < dailyClicksReq) { toast.error(`Need ${dailyClicksReq} daily clicks`); return; }
+    if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} verified referrals`); return; }
 
     setLoading(true);
     try {
@@ -50,6 +97,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
         toast.success("📤 Withdrawal request submitted!");
         setAmount("");
         loadHistory();
+        loadStats();
       } else {
         toast.error(result.message || "Withdrawal failed");
       }
@@ -58,10 +106,12 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   }
 
   const requirements = [
-    { label: "Daily Watch Ads", required: "10", met: false },
-    { label: "Daily Clicks", required: "3", met: false },
-    { label: "Total Referrals", required: "2", met: false },
-    { label: "Minimum Amount", required: "500 🦴", met: Number(amount) >= 500 },
+    { label: "Daily Watch Ads", required: `${stats.dailyAds}/${dailyAdsReq}`, met: stats.dailyAds >= dailyAdsReq },
+    { label: "Daily Clicks", required: `${stats.dailyClicks}/${dailyClicksReq}`, met: stats.dailyClicks >= dailyClicksReq },
+    { label: "Total Referrals", required: `${stats.totalRefs}/${totalRefReq}`, met: stats.totalRefs >= totalRefReq },
+    { label: "Watch Ads (Pre-withdraw)", required: `${Math.min(stats.dailyAds, withdrawAdsReq)}/${withdrawAdsReq}`, met: stats.dailyAds >= withdrawAdsReq },
+    { label: "Minimum Amount", required: `${Number(settings.min_withdraw || 500)} 🦴`, met: Number(amount) >= Number(settings.min_withdraw || 500) },
+    { label: "Max Withdraw", required: `${maxWithdrawUsdt} USDT`, met: rawUsdt <= maxWithdrawUsdt },
     { label: "No Pending Withdrawal", required: "✓", met: !hasPending },
   ];
 
@@ -74,7 +124,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
         className="bg-gradient-to-r from-[hsl(var(--doggy-gold))]/15 to-[hsl(var(--doggy-orange))]/15 rounded-2xl p-4 border border-[hsl(var(--doggy-gold))]/20"
       >
         <p className="font-display font-bold text-gradient-gold text-sm">💸 Withdraw Doggy</p>
-        <p className="text-xs text-muted-foreground mt-1">Convert your Doggy to USDT (APTOS Network). 100 Doggy = 0.01 USDT</p>
+        <p className="text-xs text-muted-foreground mt-1">Convert your Doggy to USDT (APTOS Network). Fee: ${feeFixed} + {feePercent}%</p>
       </motion.div>
 
       {/* Balance */}
@@ -83,7 +133,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
       >
         <p className="text-xs text-muted-foreground">Available Balance</p>
         <p className="text-3xl font-display font-bold text-gradient-gold">{balance.toFixed(0)} 🦴</p>
-        <p className="text-sm text-muted-foreground">≈ ${(balance * 0.0001).toFixed(4)} USDT</p>
+        <p className="text-sm text-muted-foreground">≈ ${(balance * rate).toFixed(4)} USDT</p>
       </motion.div>
 
       {/* Wallet */}
@@ -103,10 +153,14 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
         className="bg-card rounded-xl p-4 border border-border space-y-2"
       >
-        <label className="text-xs text-muted-foreground font-bold">💰 Amount (Doggy)</label>
-        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Min 500" className="h-10" />
+        <label className="text-xs text-muted-foreground font-bold">💰 Amount (Doggy) • Max: {maxDoggy}</label>
+        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Min ${settings.min_withdraw || 500}`} className="h-10" />
         {Number(amount) > 0 && (
-          <p className="text-xs text-[hsl(var(--doggy-green))]">≈ ${usdtAmount} USDT</p>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Gross: ${rawUsdt.toFixed(4)} USDT</p>
+            <p className="text-xs text-destructive">Fee: -${fee.toFixed(4)} (${feeFixed} + {feePercent}%)</p>
+            <p className="text-xs text-[hsl(var(--doggy-green))] font-bold">You receive: ${netUsdt.toFixed(4)} USDT</p>
+          </div>
         )}
       </motion.div>
 
@@ -142,25 +196,30 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
       {history.length > 0 && (
         <div>
           <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Withdraw History</p>
-          {history.map((w) => (
-            <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-              className="flex items-center justify-between bg-card rounded-xl p-3 border border-border mb-2"
-            >
-              <div>
-                <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">≈ ${Number(w.usdt_amount).toFixed(4)} USDT</p>
-                <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</p>
-              </div>
-              <span className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-full ${
-                w.status === 'approved' ? 'bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))]' :
-                w.status === 'rejected' ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'
-              }`}>
-                {w.status === 'approved' && <><Check className="w-3 h-3" /> Approved</>}
-                {w.status === 'rejected' && <><X className="w-3 h-3" /> Rejected</>}
-                {w.status === 'pending' && <><Clock className="w-3 h-3" /> Pending</>}
-              </span>
-            </motion.div>
-          ))}
+          {history.map((w) => {
+            const wFee = Number(w.fee_usdt || 0);
+            const wNet = Number(w.net_usdt || w.usdt_amount);
+            return (
+              <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                className="flex items-center justify-between bg-card rounded-xl p-3 border border-border mb-2"
+              >
+                <div>
+                  <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🦴</p>
+                  <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${wFee.toFixed(4)}</p>
+                  <p className="text-[10px] text-[hsl(var(--doggy-green))] font-bold">Net: ${wNet.toFixed(4)} USDT</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</p>
+                </div>
+                <span className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-full ${
+                  w.status === 'approved' ? 'bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))]' :
+                  w.status === 'rejected' ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'
+                }`}>
+                  {w.status === 'approved' && <><Check className="w-3 h-3" /> Approved</>}
+                  {w.status === 'rejected' && <><X className="w-3 h-3" /> Rejected</>}
+                  {w.status === 'pending' && <><Clock className="w-3 h-3" /> Pending</>}
+                </span>
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>
