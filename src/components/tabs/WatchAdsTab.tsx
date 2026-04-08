@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Clock, Loader2, Tv, AlertCircle, X } from "lucide-react";
+import { Clock, Loader2, Tv, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { RewardPopup } from "@/components/RewardPopup";

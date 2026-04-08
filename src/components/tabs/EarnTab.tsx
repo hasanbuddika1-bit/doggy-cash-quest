@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, MousePointerClick, Gift, Users, Sparkles } from "lucide-react";
+import { Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, MousePointerClick, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { processClick, claimRewardCode, claimReferralReward, submitTask, verifyChannel } from "@/lib/api";
-import { getTelegramWebApp, getCurrentUser } from "@/lib/telegram";
+import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 
