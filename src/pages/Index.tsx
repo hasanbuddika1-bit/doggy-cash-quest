@@ -11,7 +11,7 @@ import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
-import { toast } from "sonner";
+
 
 type AppState = "loading" | "access_tasks" | "main" | "banned";
 
