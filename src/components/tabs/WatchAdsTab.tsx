@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Clock, Loader2, Tv } from "lucide-react";
+import { Clock, Loader2, Tv, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { RewardPopup } from "@/components/RewardPopup";
@@ -11,12 +11,27 @@ interface WatchAdsTabProps {
 }
 
 const AD_COUNT = 10;
-const AD_REWARD = 20;
+const ADSGRAM_BLOCK_ID = "int-27106";
+const MIN_WATCH_SECONDS = 30;
 
 export function WatchAdsTab({ userId }: WatchAdsTabProps) {
   const [watchedAds, setWatchedAds] = useState<Record<number, number>>({});
   const [watchingAd, setWatchingAd] = useState<number | null>(null);
   const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
+  const [adRewards, setAdRewards] = useState<Record<number, number>>({});
+  const [showAdError, setShowAdError] = useState(false);
+
+  const loadSettings = useCallback(async () => {
+    const { data } = await supabase.from("app_settings").select("key, value").like("key", "ad_reward_%");
+    if (data) {
+      const map: Record<number, number> = {};
+      data.forEach(s => {
+        const idx = parseInt(s.key.replace("ad_reward_", ""));
+        if (!isNaN(idx)) map[idx] = Number(s.value);
+      });
+      setAdRewards(map);
+    }
+  }, []);
 
   const loadWatchHistory = useCallback(async () => {
     const { data } = await supabase
@@ -36,7 +51,10 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
   }, [userId]);
 
-  useEffect(() => { loadWatchHistory(); }, [loadWatchHistory]);
+  useEffect(() => { 
+    loadWatchHistory(); 
+    loadSettings();
+  }, [loadWatchHistory, loadSettings]);
 
   function canWatchAd(adIndex: number): boolean {
     const lastWatch = watchedAds[adIndex];
@@ -51,6 +69,10 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     return Math.max(0, diff);
   }
 
+  function getAdReward(adIndex: number): number {
+    return adRewards[adIndex] || 20;
+  }
+
   async function handleWatchAd(adIndex: number) {
     if (!canWatchAd(adIndex)) {
       toast.error("Please wait before watching this ad again!");
@@ -58,35 +80,98 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
 
     setWatchingAd(adIndex);
-    toast.info("📺 Ad is loading... Please wait");
     
-    setTimeout(async () => {
-      try {
-        await supabase.from("ad_watches").insert({
-          user_id: userId,
-          ad_index: adIndex,
-          earned: AD_REWARD,
-        });
-
-        const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
-        if (user) {
-          await supabase.from("users").update({ 
-            balance: Number(user.balance) + AD_REWARD 
-          }).eq("id", userId);
+    try {
+      // Try Adsgram
+      const AdController = (window as any).Adsgram?.init?.({ blockId: ADSGRAM_BLOCK_ID });
+      if (AdController) {
+        const startTime = Date.now();
+        try {
+          await AdController.show();
+          const watchDuration = (Date.now() - startTime) / 1000;
+          
+          if (watchDuration < MIN_WATCH_SECONDS) {
+            setShowAdError(true);
+            setWatchingAd(null);
+            return;
+          }
+          
+          await processAdReward(adIndex);
+        } catch {
+          // User closed ad early
+          const watchDuration = (Date.now() - startTime) / 1000;
+          if (watchDuration < MIN_WATCH_SECONDS) {
+            setShowAdError(true);
+            setWatchingAd(null);
+            return;
+          }
+          await processAdReward(adIndex);
         }
-
-        setReward({ show: true, amount: AD_REWARD });
-        loadWatchHistory();
-      } catch {
-        toast.error("Failed to process ad reward");
+      } else {
+        // Fallback: simulate ad
+        toast.info("📺 Ad is loading... Please wait");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await processAdReward(adIndex);
       }
+    } catch {
+      toast.error("Failed to load ad");
       setWatchingAd(null);
-    }, 3000);
+    }
+  }
+
+  async function processAdReward(adIndex: number) {
+    try {
+      const adReward = getAdReward(adIndex);
+      await supabase.from("ad_watches").insert({
+        user_id: userId,
+        ad_index: adIndex,
+        earned: adReward,
+      });
+
+      const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
+      if (user) {
+        await supabase.from("users").update({ 
+          balance: Number(user.balance) + adReward 
+        }).eq("id", userId);
+      }
+
+      setReward({ show: true, amount: adReward });
+      loadWatchHistory();
+    } catch {
+      toast.error("Failed to process ad reward");
+    }
+    setWatchingAd(null);
   }
 
   return (
     <div className="px-4 pt-4 pb-24">
       <RewardPopup show={reward.show} amount={reward.amount} message="AD REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
+
+      {/* Ad Error Popup */}
+      {showAdError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAdError(false)}>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl p-8 mx-6 text-center max-w-sm border-4 border-[hsl(var(--doggy-gold))]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No Bones Found!</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              You must fully interact with the ad (watch till the end) to earn your bones. 🦴
+            </p>
+            <Button 
+              onClick={() => setShowAdError(false)}
+              className="w-full h-12 rounded-2xl bg-gradient-to-r from-amber-800 to-amber-900 text-white font-bold text-lg"
+            >
+              TRY AGAIN
+            </Button>
+          </motion.div>
+        </div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -108,6 +193,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
           const available = canWatchAd(adIndex);
           const cooldown = getCooldownSeconds(adIndex);
           const isWatching = watchingAd === adIndex;
+          const adReward = getAdReward(adIndex);
 
           return (
             <motion.div
@@ -127,7 +213,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
                   </div>
                   <div>
                     <p className="font-display font-bold text-sm">Watch Ad #{adIndex}</p>
-                    <p className="text-xs font-bold text-gradient-gold flex items-center gap-1">🦴 {AD_REWARD}</p>
+                    <p className="text-xs font-bold text-gradient-gold flex items-center gap-1">🦴 {adReward}</p>
                   </div>
                 </div>
 

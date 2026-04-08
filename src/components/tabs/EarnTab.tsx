@@ -4,8 +4,8 @@ import { Lock, Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, Mouse
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { processClick, claimRewardCode, claimReferralReward, submitTask } from "@/lib/api";
-import { getTelegramWebApp } from "@/lib/telegram";
+import { processClick, claimRewardCode, claimReferralReward, submitTask, verifyChannel } from "@/lib/api";
+import { getTelegramWebApp, getCurrentUser } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 
@@ -15,9 +15,10 @@ interface EarnTabProps {
 }
 
 const SUB_TABS = [
-  { key: "Tasks", icon: "📋", color: "from-amber-500 to-orange-600" },
+  { key: "Admin Tasks", icon: "📋", color: "from-amber-500 to-orange-600" },
+  { key: "Telegram Tasks", icon: "📢", color: "from-blue-500 to-cyan-600" },
   { key: "Clicks", icon: "👆", color: "from-green-500 to-emerald-600" },
-  { key: "Refer", icon: "👥", color: "from-blue-500 to-indigo-600" },
+  { key: "Refer", icon: "👥", color: "from-indigo-500 to-purple-600" },
   { key: "Reward Code", icon: "🎁", color: "from-purple-500 to-pink-600" },
 ];
 
@@ -27,7 +28,7 @@ const CLICK_LINKS = [
 ];
 
 export function EarnTab({ userId, telegramId }: EarnTabProps) {
-  const [subTab, setSubTab] = useState("Tasks");
+  const [subTab, setSubTab] = useState("Admin Tasks");
 
   return (
     <div className="px-4 pt-4 pb-24">
@@ -43,11 +44,6 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
             <p className="font-display font-bold text-gradient-gold">Earn Doggy!</p>
             <p className="text-xs text-muted-foreground">Complete tasks, click links & invite friends 🐾</p>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          <span className="text-[10px] bg-[hsl(var(--doggy-gold))]/20 text-[hsl(var(--doggy-gold))] px-2 py-0.5 rounded-full">🦴 Earn Bones</span>
-          <span className="text-[10px] bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2 py-0.5 rounded-full">⚡ Daily Rewards</span>
-          <span className="text-[10px] bg-[hsl(var(--doggy-orange))]/20 text-[hsl(var(--doggy-orange))] px-2 py-0.5 rounded-full">👋 Keep Going!</span>
         </div>
       </motion.div>
 
@@ -72,7 +68,8 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
 
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-          {subTab === "Tasks" && <TasksSection userId={userId} />}
+          {subTab === "Admin Tasks" && <TasksSection userId={userId} />}
+          {subTab === "Telegram Tasks" && <TelegramTasksSection userId={userId} telegramId={telegramId} />}
           {subTab === "Clicks" && <ClicksSection userId={userId} />}
           {subTab === "Refer" && <ReferSection userId={userId} telegramId={telegramId} />}
           {subTab === "Reward Code" && <RewardCodeSection userId={userId} />}
@@ -82,6 +79,7 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
   );
 }
 
+// ===== Admin Approve Tasks =====
 function TasksSection({ userId }: { userId: string }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
@@ -89,7 +87,7 @@ function TasksSection({ userId }: { userId: string }) {
   const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
   const loadTasks = useCallback(async () => {
-    const { data } = await supabase.from("tasks").select("*").eq("active", true).order("created_at", { ascending: false });
+    const { data } = await supabase.from("tasks").select("*").eq("active", true).eq("task_type", "admin_approve").order("created_at", { ascending: false });
     setTasks(data || []);
   }, []);
 
@@ -102,10 +100,7 @@ function TasksSection({ userId }: { userId: string }) {
     }
   }, [userId]);
 
-  useEffect(() => {
-    loadTasks();
-    loadSubmissions();
-  }, [loadTasks, loadSubmissions]);
+  useEffect(() => { loadTasks(); loadSubmissions(); }, [loadTasks, loadSubmissions]);
 
   async function handleImageUpload(taskId: string, file: File) {
     const ext = file.name.split('.').pop();
@@ -123,8 +118,6 @@ function TasksSection({ userId }: { userId: string }) {
   return (
     <div className="space-y-3">
       <RewardPopup show={reward.show} amount={reward.amount} onClose={() => setReward({ show: false, amount: 0 })} />
-      
-      {/* Guide */}
       <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
         <p className="text-xs text-amber-300">📋 <b>How it works:</b> Complete tasks, upload proof screenshot, and earn Doggy after admin approval!</p>
       </div>
@@ -141,15 +134,9 @@ function TasksSection({ userId }: { userId: string }) {
         const sub = submissions[task.id];
         const isExpanded = expandedTask === task.id;
         return (
-          <motion.div
-            key={task.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.05 }}
+          <motion.div key={task.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
             whileHover={{ scale: 1.01 }}
-            className={`bg-gradient-to-r from-card to-card/80 rounded-xl border overflow-hidden ${
-              sub?.status === 'approved' ? 'border-[hsl(var(--doggy-green))]/50' : 'border-border'
-            }`}
+            className={`bg-gradient-to-r from-card to-card/80 rounded-xl border overflow-hidden ${sub?.status === 'approved' ? 'border-[hsl(var(--doggy-green))]/50' : 'border-border'}`}
           >
             <div className="p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1">
@@ -162,9 +149,7 @@ function TasksSection({ userId }: { userId: string }) {
                 </div>
               </div>
               {sub?.status === 'approved' ? (
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-xs font-bold flex items-center gap-1 bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2.5 py-1 rounded-full">
-                  <Check className="w-3 h-3" /> Done
-                </motion.span>
+                <span className="text-xs font-bold flex items-center gap-1 bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2.5 py-1 rounded-full"><Check className="w-3 h-3" /> Done</span>
               ) : sub?.status === 'pending' ? (
                 <span className="text-xs font-bold bg-primary/20 text-primary px-2.5 py-1 rounded-full">⏳ Pending</span>
               ) : sub?.status === 'rejected' ? (
@@ -209,6 +194,123 @@ function TasksSection({ userId }: { userId: string }) {
   );
 }
 
+// ===== One-Click Telegram Tasks =====
+function TelegramTasksSection({ userId, telegramId }: { userId: string; telegramId: number }) {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Record<string, any>>({});
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [joined, setJoined] = useState<Record<string, boolean>>({});
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
+
+  const loadTasks = useCallback(async () => {
+    const { data } = await supabase.from("tasks").select("*").eq("active", true).eq("task_type", "one_click").order("created_at", { ascending: false });
+    setTasks(data || []);
+  }, []);
+
+  const loadSubmissions = useCallback(async () => {
+    const { data } = await supabase.from("task_submissions").select("*").eq("user_id", userId);
+    if (data) {
+      const map: Record<string, any> = {};
+      data.forEach(s => { map[s.task_id] = s; });
+      setSubmissions(map);
+    }
+  }, [userId]);
+
+  useEffect(() => { loadTasks(); loadSubmissions(); }, [loadTasks, loadSubmissions]);
+
+  function handleJoin(task: any) {
+    const link = task.link || `https://t.me/${task.telegram_channel}`;
+    const wa = getTelegramWebApp();
+    if (wa) { wa.openTelegramLink(link); } else { window.open(link, "_blank"); }
+    setJoined(prev => ({ ...prev, [task.id]: true }));
+  }
+
+  async function handleVerify(task: any) {
+    setVerifying(task.id);
+    try {
+      const channel = task.telegram_channel?.replace('@', '') || '';
+      const result = await verifyChannel(userId, channel, telegramId);
+      if (result.verified) {
+        // Submit as approved directly
+        const { data: existing } = await supabase.from("task_submissions").select("id").eq("user_id", userId).eq("task_id", task.id).single();
+        if (!existing) {
+          await supabase.from("task_submissions").insert({ user_id: userId, task_id: task.id, status: 'approved' });
+          const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
+          if (user) {
+            await supabase.from("users").update({ balance: Number(user.balance) + Number(task.value) }).eq("id", userId);
+          }
+          setReward({ show: true, amount: task.value });
+        }
+        loadSubmissions();
+      } else {
+        toast.error("Not a member yet! Please join first.");
+      }
+    } catch { toast.error("Verification failed"); }
+    setVerifying(null);
+  }
+
+  return (
+    <div className="space-y-3">
+      <RewardPopup show={reward.show} amount={reward.amount} message="TASK REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
+      <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
+        <p className="text-xs text-blue-300">📢 <b>How it works:</b> Join channels, verify membership, and earn Doggy instantly!</p>
+      </div>
+
+      {tasks.length === 0 && (
+        <div className="text-center py-12">
+          <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
+            <span className="text-5xl">📢</span>
+          </motion.div>
+          <p className="text-muted-foreground mt-3">No Telegram tasks available yet</p>
+        </div>
+      )}
+      {tasks.map((task, i) => {
+        const sub = submissions[task.id];
+        const isJoined = joined[task.id];
+        const isDone = sub?.status === 'approved';
+
+        return (
+          <motion.div key={task.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+            className={`bg-gradient-to-r from-card to-card/80 rounded-xl border overflow-hidden ${isDone ? 'border-[hsl(var(--doggy-green))]/50' : 'border-border'}`}
+          >
+            <div className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+                    <span className="text-lg">📢</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{task.title}</p>
+                    <p className="text-xs font-bold text-gradient-gold">+{task.value} 🦴</p>
+                  </div>
+                </div>
+                {isDone && (
+                  <span className="text-xs font-bold flex items-center gap-1 bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))] px-2.5 py-1 rounded-full"><Check className="w-3 h-3" /> Done</span>
+                )}
+              </div>
+              {!isDone && (
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 h-8 text-xs bg-gradient-to-r from-blue-500 to-cyan-600 text-white border-0" onClick={() => handleJoin(task)}>
+                    <ExternalLink className="w-3 h-3 mr-1" /> Join
+                  </Button>
+                  {isJoined && (
+                    <Button size="sm" className="flex-1 h-8 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0"
+                      onClick={() => handleVerify(task)} disabled={verifying === task.id}>
+                      {verifying === task.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+                      Verify
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ===== Clicks Section =====
 function ClicksSection({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(0);
@@ -230,7 +332,6 @@ function ClicksSection({ userId }: { userId: string }) {
   }, [userId]);
 
   useEffect(() => { loadClicks(); }, [loadClicks]);
-
   useEffect(() => {
     if (timer > 0) {
       const interval = setInterval(() => setTimer(t => t - 1), 1000);
@@ -264,15 +365,11 @@ function ClicksSection({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} onClose={() => setReward({ show: false, amount: 0 })} />
-
-      {/* Guide */}
       <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
         <p className="text-xs text-emerald-300">👆 <b>How it works:</b> Click the button, view the link for 10 seconds, then earn 5 Doggy! Max 2 clicks per hour.</p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-gradient-to-br from-emerald-500/20 via-card to-green-500/10 rounded-2xl p-5 border border-emerald-500/30 text-center"
       >
         <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-4xl inline-block">👆</motion.span>
@@ -282,9 +379,7 @@ function ClicksSection({ userId }: { userId: string }) {
       </motion.div>
 
       {timer > 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="bg-gradient-to-br from-amber-500/10 to-card rounded-xl p-5 border border-amber-500/20 text-center"
         >
           <Clock className="w-8 h-8 text-amber-400 mx-auto mb-2" />
@@ -317,6 +412,7 @@ function ClicksSection({ userId }: { userId: string }) {
   );
 }
 
+// ===== Refer Section =====
 function ReferSection({ userId }: { userId: string; telegramId: number }) {
   const [referrals, setReferrals] = useState<any[]>([]);
   const [referBalance, setReferBalance] = useState(0);
@@ -343,28 +439,23 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} message="REFERRAL REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
-
-      {/* Guide */}
-      <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
-        <p className="text-xs text-blue-300">👥 <b>How it works:</b> Share your link, friends join & complete tasks → you earn 100 Doggy + 5% commission on their clicks!</p>
+      <div className="bg-indigo-500/10 rounded-xl p-3 border border-indigo-500/20">
+        <p className="text-xs text-indigo-300">👥 <b>How it works:</b> Share your link, friends join & complete tasks → you earn 100 Doggy + 5% commission!</p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-gradient-to-br from-blue-500/20 via-card to-indigo-500/10 rounded-2xl p-5 border border-blue-500/30 text-center"
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-gradient-to-br from-indigo-500/20 via-card to-purple-500/10 rounded-2xl p-5 border border-indigo-500/30 text-center"
       >
         <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-4xl inline-block">👥</motion.span>
-        <p className="text-xs text-muted-foreground mb-1 mt-2">Refer Balance</p>
+        <p className="text-xs text-muted-foreground mb-1 mt-2">Referrals: {referrals.length} | Unclaimed</p>
         <p className="text-3xl font-display font-bold text-gradient-gold">{referBalance} 🦴</p>
-        <p className="text-xs text-muted-foreground mt-1">100 Doggy + 5% commission per referral</p>
       </motion.div>
 
       <div className="bg-card rounded-xl p-3 border border-border">
         <p className="text-xs text-muted-foreground mb-2 font-bold">🔗 Your Referral Link</p>
         <div className="flex gap-2">
           <Input value={referLink} readOnly className="text-xs h-9 bg-muted" />
-          <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0" onClick={() => {
+          <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-0" onClick={() => {
             navigator.clipboard.writeText(referLink);
             toast.success("📋 Link copied!");
           }}>
@@ -382,9 +473,7 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
         <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Referral History ({referrals.length})</p>
         {referrals.length === 0 && (
           <div className="text-center py-8">
-            <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
-              <span className="text-4xl">🐕</span>
-            </motion.div>
+            <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}><span className="text-4xl">🐕</span></motion.div>
             <p className="text-xs text-muted-foreground mt-2">No referrals yet. Share your link!</p>
           </div>
         )}
@@ -411,6 +500,7 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
   );
 }
 
+// ===== Reward Code Section =====
 function RewardCodeSection({ userId }: { userId: string }) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -443,15 +533,11 @@ function RewardCodeSection({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
-
-      {/* Guide */}
       <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20">
-        <p className="text-xs text-purple-300">🎁 <b>How it works:</b> Get reward codes from our community channel and enter them here to earn Doggy!</p>
+        <p className="text-xs text-purple-300">🎁 <b>How it works:</b> Get reward codes from our community channel and enter them here!</p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-gradient-to-br from-purple-500/20 via-card to-pink-500/10 rounded-xl p-4 border border-purple-500/30"
       >
         <p className="text-sm font-display font-bold text-gradient-gold mb-3">🎁 Enter Reward Code</p>

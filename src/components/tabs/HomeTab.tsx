@@ -1,6 +1,9 @@
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Users, Wifi, CalendarPlus, Coins, Tv } from "lucide-react";
+import { Users, Wifi, CalendarPlus, Coins, Tv, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { getTelegramWebApp } from "@/lib/telegram";
 import logo from "@/assets/doggy-cash-logo.png";
 
 interface HomeTabProps {
@@ -12,20 +15,52 @@ interface HomeTabProps {
 export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
   const balance = Number(user?.balance || 0);
   const usdtValue = (balance * 0.0001).toFixed(4);
+  const userId = user?.id;
+
+  const [stats, setStats] = useState({ totalAds: 0, totalClicks: 0, totalRefs: 0, totalWithdrawn: 0 });
+
+  const loadStats = useCallback(async () => {
+    if (!userId) return;
+    const [adsRes, clicksRes, refsRes, withdrawRes] = await Promise.all([
+      supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("clicks").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("verified", true),
+      supabase.from("withdrawals").select("usdt_amount").eq("user_id", userId).eq("status", "approved"),
+    ]);
+    const totalWithdrawn = (withdrawRes.data || []).reduce((sum, w) => sum + Number(w.usdt_amount), 0);
+    setStats({
+      totalAds: adsRes.count || 0,
+      totalClicks: clicksRes.count || 0,
+      totalRefs: refsRes.count || 0,
+      totalWithdrawn,
+    });
+  }, [userId]);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   const userStats = [
     { icon: "💰", label: "Total Earn", value: balance.toFixed(0), color: "from-amber-500/20 to-orange-500/10", borderColor: "border-amber-500/30" },
-    { icon: "💸", label: "Total Withdraw", value: "0", color: "from-red-500/20 to-pink-500/10", borderColor: "border-red-500/30" },
-    { icon: "📺", label: "Total Ads", value: "0", color: "from-blue-500/20 to-indigo-500/10", borderColor: "border-blue-500/30" },
-    { icon: "👆", label: "Total Clicks", value: "0", color: "from-green-500/20 to-emerald-500/10", borderColor: "border-green-500/30" },
+    { icon: "💸", label: "Withdrawn", value: `$${stats.totalWithdrawn.toFixed(2)}`, color: "from-red-500/20 to-pink-500/10", borderColor: "border-red-500/30" },
+    { icon: "📺", label: "Total Ads", value: String(stats.totalAds), color: "from-blue-500/20 to-indigo-500/10", borderColor: "border-blue-500/30" },
+    { icon: "👆", label: "Total Clicks", value: String(stats.totalClicks), color: "from-green-500/20 to-emerald-500/10", borderColor: "border-green-500/30" },
   ];
 
   const appStatCards = [
     { icon: <Users className="w-4 h-4 text-blue-400" />, label: "Total Users", value: appStats.totalUsers, bg: "from-blue-500/15 to-blue-500/5" },
     { icon: <Wifi className="w-4 h-4 text-green-400" />, label: "Online", value: appStats.onlineUsers, bg: "from-green-500/15 to-green-500/5" },
     { icon: <CalendarPlus className="w-4 h-4 text-purple-400" />, label: "Today", value: appStats.todayJoins, bg: "from-purple-500/15 to-purple-500/5" },
-    { icon: <Coins className="w-4 h-4 text-amber-400" />, label: "Paid", value: `${appStats.totalPaid}🦴`, bg: "from-amber-500/15 to-amber-500/5" },
+    { icon: <Coins className="w-4 h-4 text-amber-400" />, label: "Paid", value: `$${appStats.totalPaid}`, bg: "from-amber-500/15 to-amber-500/5" },
   ];
+
+  const otherApps = [
+    { name: "Free Dogs Pay 🐕", link: "https://t.me/Freedogspaybot1422Bot?startapp=home", color: "from-blue-500/20 to-cyan-500/10", border: "border-blue-500/30" },
+    { name: "Free TRX Pay 💎", link: "https://t.me/Freetrxpaybot132bot?startapp=ref_5419054691", color: "from-purple-500/20 to-pink-500/10", border: "border-purple-500/30" },
+  ];
+
+  function openLink(url: string) {
+    const wa = getTelegramWebApp();
+    if (wa) { wa.openTelegramLink(url); } else { window.open(url, "_blank"); }
+  }
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-5">
@@ -64,24 +99,14 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
           <img src={logo} alt="" className="w-full h-full" />
         </div>
         <p className="text-xs text-muted-foreground mb-1">💰 Your Balance</p>
-        <motion.p
-          key={balance}
-          initial={{ scale: 1.2 }}
-          animate={{ scale: 1 }}
-          className="text-4xl font-display font-bold text-gradient-gold"
-        >
+        <motion.p key={balance} initial={{ scale: 1.2 }} animate={{ scale: 1 }} className="text-4xl font-display font-bold text-gradient-gold">
           {balance.toFixed(0)} 🦴
         </motion.p>
         <p className="text-sm text-muted-foreground mt-1">≈ ${usdtValue} USDT</p>
       </motion.div>
 
       {/* Watch Ads Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        whileTap={{ scale: 0.98 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} whileTap={{ scale: 0.98 }}>
         <Button
           onClick={() => onNavigate?.("watchads")}
           className="w-full h-14 bg-gradient-to-r from-[hsl(var(--doggy-gold))] to-[hsl(var(--doggy-orange))] text-primary-foreground font-display font-bold text-lg rounded-2xl shadow-lg border-0"
@@ -130,6 +155,36 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
               <div className="mb-1 flex justify-center">{stat.icon}</div>
               <p className="font-bold text-xs">{stat.value}</p>
               <p className="text-[9px] text-muted-foreground">{stat.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Other Mini Apps */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-2 font-bold">🎮 Our Other Mini Apps</p>
+        <div className="space-y-2">
+          {otherApps.map((app, i) => (
+            <motion.div
+              key={app.name}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 + i * 0.05 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => openLink(app.link)}
+              className={`bg-gradient-to-r ${app.color} rounded-xl p-4 border ${app.border} flex items-center justify-between cursor-pointer`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <span className="text-xl">{app.name.includes("Dogs") ? "🐕" : "💎"}</span>
+                </div>
+                <div>
+                  <p className="font-display font-bold text-sm">{app.name}</p>
+                  <p className="text-[10px] text-muted-foreground">Tap to open →</p>
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </motion.div>
           ))}
         </div>
