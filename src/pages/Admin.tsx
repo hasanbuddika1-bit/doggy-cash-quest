@@ -100,21 +100,19 @@ function UsersTab() {
               <div className="flex gap-1 flex-col" onClick={(e) => e.stopPropagation()}>
                 {u.banned ? (
                   <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
-                    await supabase.from("users").update({ banned: false }).eq("id", u.id);
+                    await adminAction("update_user", { target_user_id: u.id, updates: { banned: false } });
                     loadUsers();
                     toast.success("User unbanned");
                   }}>Unban</Button>
                 ) : (
                   <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
-                    await supabase.from("users").update({ banned: true }).eq("id", u.id);
+                    await adminAction("ban_user", { target_user_id: u.id });
                     loadUsers();
                     toast.success("User banned");
                   }}>Ban</Button>
                 )}
                 <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
-                  await supabase.from("users").update({ 
-                    access_tasks_completed: !u.access_tasks_completed 
-                  }).eq("id", u.id);
+                  await adminAction("update_user", { target_user_id: u.id, updates: { access_tasks_completed: !u.access_tasks_completed } });
                   loadUsers();
                   toast.success(`Access tasks ${!u.access_tasks_completed ? 'completed' : 'reset'}`);
                 }}>
@@ -239,7 +237,7 @@ function SuspendedTab() {
                 <p className="text-[10px] text-muted-foreground">Banned: {new Date(u.updated_at).toLocaleString()}</p>
               </div>
               <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
-                await supabase.from("users").update({ banned: false }).eq("id", u.id);
+                await adminAction("update_user", { target_user_id: u.id, updates: { banned: false } });
                 loadUsers();
                 toast.success("User unbanned");
               }}>Unban</Button>
@@ -274,7 +272,7 @@ function TasksTab({ taskType }: { taskType: string }) {
       insertData.telegram_channel = telegramChannel.trim().replace('@', '');
       insertData.requires_image = false;
     }
-    await supabase.from("tasks").insert(insertData);
+    await adminAction("create_task", { task_data: insertData });
     toast.success("Task created!");
     setTitle(""); setDescription(""); setLink(""); setValue("10"); setTelegramChannel("");
     loadTasks();
@@ -307,11 +305,11 @@ function TasksTab({ taskType }: { taskType: string }) {
             </div>
             <div className="flex gap-1">
               <Button size="sm" variant={t.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
-                await supabase.from("tasks").update({ active: !t.active }).eq("id", t.id);
+                await adminAction("update_task", { task_id: t.id, updates: { active: !t.active } });
                 loadTasks();
               }}>{t.active ? 'Disable' : 'Enable'}</Button>
               <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
-                await supabase.from("tasks").delete().eq("id", t.id);
+                await adminAction("delete_task", { task_id: t.id });
                 loadTasks();
                 toast.success("Task deleted");
               }}><Trash2 className="w-3 h-3" /></Button>
@@ -444,7 +442,7 @@ function CodesTab() {
 
   async function createCode() {
     if (!code.trim()) return;
-    await supabase.from("reward_codes").insert({ code: code.trim(), value: Number(codeValue), max_uses: Number(maxUses) });
+    await adminAction("create_code", { code_data: { code: code.trim(), value: Number(codeValue), max_uses: Number(maxUses) } });
     toast.success("Code created!");
     setCode(""); setCodeValue("50"); setMaxUses("100");
     loadCodes();
@@ -468,7 +466,7 @@ function CodesTab() {
             <p className="text-xs text-primary">+{c.value} 🦴 • {c.current_uses}/{c.max_uses} used</p>
           </div>
           <Button size="sm" variant={c.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
-            await supabase.from("reward_codes").update({ active: !c.active }).eq("id", c.id);
+            await adminAction("update_code", { code_id: c.id, updates: { active: !c.active } });
             loadCodes();
           }}>{c.active ? 'Deactivate' : 'Activate'}</Button>
         </div>
@@ -493,27 +491,26 @@ function ChannelsTab() {
 
   async function addChannel() {
     if (!name.trim() || !telegramUsername.trim() || !link.trim()) return;
-    await supabase.from("channels").insert({
+    await adminAction("create_channel", { channel_data: {
       name: name.trim(),
       telegram_username: telegramUsername.trim().replace('@', ''),
       link: link.trim(),
       country_restriction: countryRestriction.trim() || null,
       sort_order: channels.length + 1,
-    });
+    }});
     toast.success("Channel added!");
     setName(""); setTelegramUsername(""); setLink(""); setCountryRestriction("");
     loadChannels();
   }
 
   async function removeChannel(id: string) {
-    await supabase.from("channel_verifications").delete().eq("channel_id", id);
-    await supabase.from("channels").delete().eq("id", id);
+    await adminAction("delete_channel", { channel_id: id });
     toast.success("Channel removed!");
     loadChannels();
   }
 
   async function toggleRequired(id: string, currentRequired: boolean) {
-    await supabase.from("channels").update({ required: !currentRequired }).eq("id", id);
+    await adminAction("update_task", { task_id: id, updates: { required: !currentRequired } });
     loadChannels();
   }
 
@@ -614,7 +611,7 @@ function SettingsTab() {
   async function saveSettings() {
     for (const s of settings) {
       if (values[s.key] !== s.value) {
-        await supabase.from("app_settings").update({ value: values[s.key] }).eq("id", s.id);
+        await adminAction("update_settings", { key: s.key, value: values[s.key] });
       }
     }
     toast.success("⚙️ Settings saved!");
