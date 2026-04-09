@@ -97,7 +97,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             return;
           }
           
-          await processAdReward(adIndex);
+          await handleProcessAdReward(adIndex);
         } catch {
           // User closed ad early
           const watchDuration = (Date.now() - startTime) / 1000;
@@ -106,13 +106,13 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             setWatchingAd(null);
             return;
           }
-          await processAdReward(adIndex);
+          await handleProcessAdReward(adIndex);
         }
       } else {
         // Fallback: simulate ad
         toast.info("📺 Ad is loading... Please wait");
         await new Promise(resolve => setTimeout(resolve, 3000));
-        await processAdReward(adIndex);
+        await handleProcessAdReward(adIndex);
       }
     } catch {
       toast.error("Failed to load ad");
