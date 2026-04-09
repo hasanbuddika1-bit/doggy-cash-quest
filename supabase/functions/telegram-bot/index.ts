@@ -424,6 +424,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'admin_update_channel') {
+      const { channel_id, updates } = body;
+      await supabase.from('channels').update(updates).eq('id', channel_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if (action === 'admin_create_channel') {
       const { channel_data } = body;
       await supabase.from('channels').insert(channel_data);
