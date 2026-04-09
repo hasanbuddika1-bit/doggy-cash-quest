@@ -510,7 +510,7 @@ function ChannelsTab() {
   }
 
   async function toggleRequired(id: string, currentRequired: boolean) {
-    await adminAction("update_task", { task_id: id, updates: { required: !currentRequired } });
+    await adminAction("update_channel", { channel_id: id, updates: { required: !currentRequired } });
     loadChannels();
   }
 
