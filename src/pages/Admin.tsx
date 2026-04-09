@@ -64,11 +64,12 @@ export default function AdminPanel() {
 function UsersTab() {
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   useEffect(() => { loadUsers(); }, []);
 
   async function loadUsers() {
-    const { data } = await supabase.from("users").select("*").order("balance", { ascending: false }).limit(100);
+    const { data } = await supabase.from("users").select("*").order("balance", { ascending: false }).limit(200);
     setUsers(data || []);
   }
 
@@ -77,13 +78,17 @@ function UsersTab() {
     String(u.telegram_id).includes(search)
   );
 
+  if (selectedUser) {
+    return <UserActivityView user={selectedUser} onBack={() => setSelectedUser(null)} onRefresh={loadUsers} />;
+  }
+
   return (
     <div className="space-y-3 mt-3">
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-9" />
-      <p className="text-xs text-muted-foreground">Total: {users.length} users</p>
+      <p className="text-xs text-muted-foreground">Total: {users.length} users (sorted by balance)</p>
       <div className="space-y-2 max-h-[60vh] overflow-y-auto">
         {filtered.map((u) => (
-          <div key={u.id} className="bg-card rounded-lg p-3 border border-border">
+          <div key={u.id} className="bg-card rounded-lg p-3 border border-border cursor-pointer hover:border-primary/50" onClick={() => setSelectedUser(u)}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
@@ -92,7 +97,7 @@ function UsersTab() {
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
               </div>
-              <div className="flex gap-1 flex-col">
+              <div className="flex gap-1 flex-col" onClick={(e) => e.stopPropagation()}>
                 {u.banned ? (
                   <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
                     await supabase.from("users").update({ banned: false }).eq("id", u.id);
@@ -119,6 +124,129 @@ function UsersTab() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () => void; onRefresh: () => void }) {
+  const [referrals, setReferrals] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [adWatches, setAdWatches] = useState<any[]>([]);
+  const [clicks, setClicks] = useState<any[]>([]);
+  const [taskSubs, setTaskSubs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const uid = user.id;
+    Promise.all([
+      supabase.from("referrals").select("*, users!referrals_referee_id_fkey(username, first_name)").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("withdrawals").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("ad_watches").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("clicks").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("task_submissions").select("*, tasks(title)").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+    ]).then(([refs, wds, ads, cls, tsks]) => {
+      setReferrals(refs.data || []);
+      setWithdrawals(wds.data || []);
+      setAdWatches(ads.data || []);
+      setClicks(cls.data || []);
+      setTaskSubs(tsks.data || []);
+    });
+  }, [user.id]);
+
+  return (
+    <div className="space-y-3 mt-3">
+      <Button size="sm" variant="outline" onClick={onBack} className="h-7 text-xs">← Back to Users</Button>
+      <div className="bg-card rounded-lg p-3 border border-border">
+        <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
+        <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
+        <p className="text-xs text-primary font-bold">{Number(user.balance).toFixed(0)} 🦴 | Country: {user.country || 'Unknown'}</p>
+        <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
+      </div>
+
+      <div className="bg-card rounded-lg p-3 border border-border">
+        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length}</p>
+      </div>
+
+      {referrals.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">👥 Referrals</p>
+          {referrals.map(r => (
+            <p key={r.id} className="text-[10px] text-muted-foreground">
+              {(r.users as any)?.first_name || (r.users as any)?.username || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {withdrawals.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">💸 Withdrawals</p>
+          {withdrawals.map(w => (
+            <p key={w.id} className="text-[10px] text-muted-foreground">
+              {Number(w.amount).toFixed(0)} 🦴 → ${Number(w.net_usdt || w.usdt_amount).toFixed(4)} | {w.status.toUpperCase()} | {new Date(w.created_at).toLocaleDateString()}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {adWatches.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">📺 Ad Watches (last {adWatches.length})</p>
+          {adWatches.slice(0, 10).map(a => (
+            <p key={a.id} className="text-[10px] text-muted-foreground">
+              Ad #{a.ad_index} — +{a.earned} 🦴 | {new Date(a.created_at).toLocaleString()}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {taskSubs.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">📋 Task Submissions</p>
+          {taskSubs.map(t => (
+            <p key={t.id} className="text-[10px] text-muted-foreground">
+              {(t.tasks as any)?.title || 'Unknown'} — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SuspendedTab() {
+  const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => { loadUsers(); }, []);
+
+  async function loadUsers() {
+    const { data } = await supabase.from("users").select("*").eq("banned", true).order("updated_at", { ascending: false }).limit(100);
+    setUsers(data || []);
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <p className="text-xs text-muted-foreground font-bold">🚫 IP Suspended Accounts ({users.length})</p>
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+        {users.map((u) => (
+          <div key={u.id} className="bg-card rounded-lg p-3 border border-destructive/30">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground">@{u.username} | TG: {u.telegram_id}</p>
+                <p className="text-xs text-destructive font-bold">IP: {u.ip_address || 'N/A'}</p>
+                <p className="text-xs text-muted-foreground">Balance: {Number(u.balance).toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">Banned: {new Date(u.updated_at).toLocaleString()}</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
+                await supabase.from("users").update({ banned: false }).eq("id", u.id);
+                loadUsers();
+                toast.success("User unbanned");
+              }}>Unban</Button>
+            </div>
+          </div>
+        ))}
+        {users.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No suspended accounts</p>}
       </div>
     </div>
   );
