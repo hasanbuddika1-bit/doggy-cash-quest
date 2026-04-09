@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Clock, Loader2, Tv, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { processAdReward } from "@/lib/api";
 import { RewardPopup } from "@/components/RewardPopup";
 import { toast } from "sonner";
 
@@ -119,22 +120,10 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
   }
 
-  async function processAdReward(adIndex: number) {
+  async function handleProcessAdReward(adIndex: number) {
     try {
       const adReward = getAdReward(adIndex);
-      await supabase.from("ad_watches").insert({
-        user_id: userId,
-        ad_index: adIndex,
-        earned: adReward,
-      });
-
-      const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
-      if (user) {
-        await supabase.from("users").update({ 
-          balance: Number(user.balance) + adReward 
-        }).eq("id", userId);
-      }
-
+      await processAdReward(userId, adIndex, adReward);
       setReward({ show: true, amount: adReward });
       loadWatchHistory();
     } catch {
