@@ -15,7 +15,7 @@ import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
 
 type AppState = "loading" | "access_tasks" | "main" | "banned";
 
-const ADSGRAM_AUTO_BLOCK = "27102";
+const ADSGRAM_AUTO_BLOCK = "int-27102";
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("loading");

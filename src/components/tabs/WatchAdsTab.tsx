@@ -11,7 +11,7 @@ interface WatchAdsTabProps {
 }
 
 const AD_COUNT = 10;
-const ADSGRAM_BLOCK_ID = "27106";
+const ADSGRAM_BLOCK_ID = "int-27106";
 const MIN_WATCH_SECONDS = 33;
 
 export function WatchAdsTab({ userId }: WatchAdsTabProps) {
