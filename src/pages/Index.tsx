@@ -102,10 +102,7 @@ const Index = () => {
         return;
       }
 
-      // Save detected country to user
-      if (detectedCountry && detectedCountry !== 'UNKNOWN' && result.user.id) {
-        await supabase.from("users").update({ country: detectedCountry }).eq("id", result.user.id);
-      }
+      // Country is saved server-side via get_or_create_user
 
       const { count: totalUsers } = await supabase.from("users").select("*", { count: "exact", head: true });
       const today = new Date();
