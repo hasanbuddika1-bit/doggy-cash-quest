@@ -4,7 +4,7 @@ import { Play, ExternalLink, Upload, Clock, Copy, Loader2, Check, X, MousePointe
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { processClick, claimRewardCode, claimReferralReward, submitTask, verifyChannel } from "@/lib/api";
+import { processClick, claimRewardCode, claimReferralReward, submitTask, verifyChannel, processTelegramTask } from "@/lib/api";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
@@ -231,14 +231,10 @@ function TelegramTasksSection({ userId, telegramId }: { userId: string; telegram
       const channel = task.telegram_channel?.replace('@', '') || '';
       const result = await verifyChannel(userId, channel, telegramId);
       if (result.verified) {
-        // Submit as approved directly
+        // Submit as approved via edge function
         const { data: existing } = await supabase.from("task_submissions").select("id").eq("user_id", userId).eq("task_id", task.id).single();
         if (!existing) {
-          await supabase.from("task_submissions").insert({ user_id: userId, task_id: task.id, status: 'approved' });
-          const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
-          if (user) {
-            await supabase.from("users").update({ balance: Number(user.balance) + Number(task.value) }).eq("id", userId);
-          }
+          await processTelegramTask(userId, task.id, task.value);
           setReward({ show: true, amount: task.value });
         }
         loadSubmissions();
