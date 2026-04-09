@@ -15,7 +15,7 @@ import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
 
 type AppState = "loading" | "access_tasks" | "main" | "banned";
 
-const ADSGRAM_AUTO_BLOCK = "27102";
+const ADSGRAM_AUTO_BLOCK = "int-27102";
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("loading");
@@ -102,10 +102,7 @@ const Index = () => {
         return;
       }
 
-      // Save detected country to user
-      if (detectedCountry && detectedCountry !== 'UNKNOWN' && result.user.id) {
-        await supabase.from("users").update({ country: detectedCountry }).eq("id", result.user.id);
-      }
+      // Country is saved server-side via get_or_create_user
 
       const { count: totalUsers } = await supabase.from("users").select("*", { count: "exact", head: true });
       const today = new Date();

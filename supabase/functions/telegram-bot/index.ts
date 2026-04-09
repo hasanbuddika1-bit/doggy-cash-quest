@@ -356,6 +356,99 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Process ad reward (from WatchAdsTab)
+    if (action === 'process_ad_reward') {
+      const { user_id, ad_index, earned } = body;
+      const { data: user } = await supabase.from('users').select('balance, banned').eq('id', user_id).single();
+      if (!user) throw new Error('User not found');
+      if (user.banned) throw new Error('Account suspended');
+
+      await supabase.from('ad_watches').insert({ user_id, ad_index, earned: earned || 20 });
+      await supabase.from('users').update({ balance: Number(user.balance) + Number(earned || 20) }).eq('id', user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Update wallet address
+    if (action === 'update_wallet') {
+      const { user_id, wallet_address } = body;
+      await supabase.from('users').update({ wallet_address }).eq('id', user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Process telegram task (one-click)
+    if (action === 'process_telegram_task') {
+      const { user_id, task_id, task_value } = body;
+      const { data: existing } = await supabase.from('task_submissions').select('id').eq('user_id', user_id).eq('task_id', task_id).single();
+      if (existing) return new Response(JSON.stringify({ success: false, message: 'Already completed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      await supabase.from('task_submissions').insert({ user_id, task_id, status: 'approved' });
+      const { data: user } = await supabase.from('users').select('balance').eq('id', user_id).single();
+      await supabase.from('users').update({ balance: Number(user?.balance || 0) + Number(task_value || 0) }).eq('id', user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Admin CRUD operations
+    if (action === 'admin_update_user') {
+      const { target_user_id, updates } = body;
+      await supabase.from('users').update(updates).eq('id', target_user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_create_task') {
+      const { task_data } = body;
+      await supabase.from('tasks').insert(task_data);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_update_task') {
+      const { task_id, updates } = body;
+      await supabase.from('tasks').update(updates).eq('id', task_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_delete_task') {
+      const { task_id } = body;
+      await supabase.from('tasks').delete().eq('id', task_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_create_code') {
+      const { code_data } = body;
+      await supabase.from('reward_codes').insert(code_data);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_update_code') {
+      const { code_id, updates } = body;
+      await supabase.from('reward_codes').update(updates).eq('id', code_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_update_channel') {
+      const { channel_id, updates } = body;
+      await supabase.from('channels').update(updates).eq('id', channel_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_create_channel') {
+      const { channel_data } = body;
+      await supabase.from('channels').insert(channel_data);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_delete_channel') {
+      const { channel_id } = body;
+      await supabase.from('channel_verifications').delete().eq('channel_id', channel_id);
+      await supabase.from('channels').delete().eq('id', channel_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'admin_update_settings') {
+      const { key, value } = body;
+      await supabase.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error';

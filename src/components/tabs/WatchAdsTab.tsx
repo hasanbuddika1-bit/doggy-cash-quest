@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Clock, Loader2, Tv, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { processAdReward } from "@/lib/api";
 import { RewardPopup } from "@/components/RewardPopup";
 import { toast } from "sonner";
 
@@ -11,7 +12,7 @@ interface WatchAdsTabProps {
 }
 
 const AD_COUNT = 10;
-const ADSGRAM_BLOCK_ID = "27106";
+const ADSGRAM_BLOCK_ID = "int-27106";
 const MIN_WATCH_SECONDS = 33;
 
 export function WatchAdsTab({ userId }: WatchAdsTabProps) {
@@ -96,7 +97,7 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             return;
           }
           
-          await processAdReward(adIndex);
+          await handleProcessAdReward(adIndex);
         } catch {
           // User closed ad early
           const watchDuration = (Date.now() - startTime) / 1000;
@@ -105,13 +106,13 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             setWatchingAd(null);
             return;
           }
-          await processAdReward(adIndex);
+          await handleProcessAdReward(adIndex);
         }
       } else {
         // Fallback: simulate ad
         toast.info("📺 Ad is loading... Please wait");
         await new Promise(resolve => setTimeout(resolve, 3000));
-        await processAdReward(adIndex);
+        await handleProcessAdReward(adIndex);
       }
     } catch {
       toast.error("Failed to load ad");
@@ -119,22 +120,10 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
   }
 
-  async function processAdReward(adIndex: number) {
+  async function handleProcessAdReward(adIndex: number) {
     try {
       const adReward = getAdReward(adIndex);
-      await supabase.from("ad_watches").insert({
-        user_id: userId,
-        ad_index: adIndex,
-        earned: adReward,
-      });
-
-      const { data: user } = await supabase.from("users").select("balance").eq("id", userId).single();
-      if (user) {
-        await supabase.from("users").update({ 
-          balance: Number(user.balance) + adReward 
-        }).eq("id", userId);
-      }
-
+      await processAdReward(userId, adIndex, adReward);
       setReward({ show: true, amount: adReward });
       loadWatchHistory();
     } catch {

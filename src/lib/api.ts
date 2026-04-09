@@ -89,6 +89,21 @@ export async function detectCountry() {
   return callEdgeFunction("geo-detect", {});
 }
 
+// Ad reward
+export async function processAdReward(userId: string, adIndex: number, earned: number) {
+  return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned });
+}
+
+// Wallet
+export async function updateWallet(userId: string, walletAddress: string) {
+  return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress });
+}
+
+// Telegram task
+export async function processTelegramTask(userId: string, taskId: string, taskValue: number) {
+  return callEdgeFunction("telegram-bot", { action: "process_telegram_task", user_id: userId, task_id: taskId, task_value: taskValue });
+}
+
 // Admin operations
 export async function adminAction(action: string, data: any) {
   return callEdgeFunction("telegram-bot", { action: `admin_${action}`, ...data });
