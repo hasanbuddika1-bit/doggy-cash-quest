@@ -413,7 +413,7 @@ function ClicksSection({ userId }: { userId: string }) {
 }
 
 // ===== Refer Section =====
-function ReferSection({ userId }: { userId: string; telegramId: number }) {
+function ReferSection({ userId, telegramId }: { userId: string; telegramId: number }) {
   const [referrals, setReferrals] = useState<any[]>([]);
   const [referBalance, setReferBalance] = useState(0);
   const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
@@ -435,7 +435,7 @@ function ReferSection({ userId }: { userId: string; telegramId: number }) {
     } catch { toast.error("Claim failed"); }
   }
 
-  const referLink = `https://t.me/Doggycash1bot?start=ref_${userId}`;
+  const referLink = `https://t.me/Doggycash1bot?startapp=ref_${telegramId}`;
   return (
     <div className="space-y-4">
       <RewardPopup show={reward.show} amount={reward.amount} message="REFERRAL REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
