@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Copy, Calendar, Edit, Save, MapPin, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
+import { updateWallet } from "@/lib/api";
 import { toast } from "sonner";
 
 interface ProfileTabProps {
@@ -17,7 +17,7 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
   const balance = Number(user?.balance || 0);
 
   async function saveWallet() {
-    await supabase.from("users").update({ wallet_address: wallet }).eq("id", userId);
+    await updateWallet(userId, wallet);
     toast.success("✅ Wallet updated!");
     setEditing(false);
   }
