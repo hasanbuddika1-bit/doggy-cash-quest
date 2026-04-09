@@ -4,7 +4,7 @@ import { Wallet, AlertCircle, Loader2, Check, X, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { submitWithdrawal } from "@/lib/api";
+import { submitWithdrawal, updateWallet } from "@/lib/api";
 import { toast } from "sonner";
 
 interface WithdrawTabProps {
@@ -74,7 +74,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   }
 
   async function saveWallet() {
-    await supabase.from("users").update({ wallet_address: walletAddress }).eq("id", userId);
+    await updateWallet(userId, walletAddress);
     toast.success("💾 Wallet saved!");
   }
 
