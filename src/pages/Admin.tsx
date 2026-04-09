@@ -35,6 +35,7 @@ export default function AdminPanel() {
       <Tabs defaultValue="users">
         <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-card">
           <TabsTrigger value="users" className="text-xs">👥 Users</TabsTrigger>
+          <TabsTrigger value="suspended" className="text-xs">🚫 IP Suspended</TabsTrigger>
           <TabsTrigger value="tasks" className="text-xs">📋 Admin Tasks</TabsTrigger>
           <TabsTrigger value="tgtasks" className="text-xs">📢 TG Tasks</TabsTrigger>
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
@@ -46,6 +47,7 @@ export default function AdminPanel() {
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
+        <TabsContent value="suspended"><SuspendedTab /></TabsContent>
         <TabsContent value="tasks"><TasksTab taskType="admin_approve" /></TabsContent>
         <TabsContent value="tgtasks"><TasksTab taskType="one_click" /></TabsContent>
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
