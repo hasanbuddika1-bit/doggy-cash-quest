@@ -90,8 +90,8 @@ export async function detectCountry() {
 }
 
 // Ad reward
-export async function processAdReward(userId: string, adIndex: number, earned: number) {
-  return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned });
+export async function processAdReward(userId: string, adIndex: number, earned: number, watchSeconds: number) {
+  return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned, watch_seconds: watchSeconds });
 }
 
 // Wallet
