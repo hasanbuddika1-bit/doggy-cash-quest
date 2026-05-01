@@ -3,6 +3,10 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const ADMIN_CHAT_ID = '5419054691';
+const ADMIN_USERNAME = 'Buddika12';
+const ADMIN_PASSWORD = 'Aabbcc.123';
+const ADMIN_SESSION_TOKEN = 'doggy_admin_session_2026_05_secure';
+const MIN_AD_SECONDS = 33;
 
 async function sendTelegram(method: string, body: any, lovableKey: string, telegramKey: string) {
   const res = await fetch(`${GATEWAY_URL}/${method}`, {
@@ -47,6 +51,18 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { action } = body;
+
+    if (action === 'admin_login') {
+      const { username, password } = body;
+      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        return new Response(JSON.stringify({ success: true, token: ADMIN_SESSION_TOKEN }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ success: false, message: 'Invalid admin login' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (String(action || '').startsWith('admin_') && body.admin_token !== ADMIN_SESSION_TOKEN) {
+      return new Response(JSON.stringify({ error: 'Unauthorized admin action' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     if (action === 'get_or_create_user') {
       const { telegram_id, username, first_name, photo_url, referrer_id } = body;
