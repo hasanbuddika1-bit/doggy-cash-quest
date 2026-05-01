@@ -408,7 +408,20 @@ Deno.serve(async (req) => {
     // Admin CRUD operations
     if (action === 'admin_update_user') {
       const { target_user_id, updates } = body;
-      await supabase.from('users').update(updates).eq('id', target_user_id);
+      const safeUpdates: Record<string, unknown> = {};
+      for (const key of ['banned', 'access_tasks_completed', 'wallet_address', 'suspension_reason'] as const) {
+        if (Object.prototype.hasOwnProperty.call(updates || {}, key)) safeUpdates[key] = updates[key];
+      }
+      if (safeUpdates.banned === false) {
+        safeUpdates.suspension_reason = null;
+        safeUpdates.suspended_at = null;
+      }
+      if (safeUpdates.banned === true && !safeUpdates.suspension_reason) {
+        safeUpdates.suspension_reason = 'Suspicious activity detected by admin';
+        safeUpdates.suspended_at = new Date().toISOString();
+      }
+      if (Object.keys(safeUpdates).length === 0) throw new Error('No allowed user updates');
+      await supabase.from('users').update(safeUpdates).eq('id', target_user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
