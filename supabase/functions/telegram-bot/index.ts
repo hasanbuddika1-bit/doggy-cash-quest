@@ -97,8 +97,9 @@ Deno.serve(async (req) => {
         if (sameIpReferralBlock) {
           const { data: existingUsers } = await supabase.from('users').select('id').eq('ip_address', clientIp).neq('id', user.id);
           if (existingUsers && existingUsers.length > 0) {
-            await supabase.from('users').update({ banned: true }).eq('id', user.id);
+            await supabase.from('users').update({ banned: true, suspension_reason: 'Same IP / multiple accounts detected', suspended_at: new Date().toISOString() }).eq('id', user.id);
             user.banned = true;
+            user.suspension_reason = 'Same IP / multiple accounts detected';
             
             await notifyAdmin(
               `🚫 <b>Auto-Ban: Same IP Detected!</b>\n\nNew: ${first_name || 'N/A'} (@${username || 'N/A'})\nTelegram ID: <code>${telegram_id}</code>\nIP: <code>${clientIp}</code>\nExisting accounts on this IP: ${existingUsers.length}\n\n⚠️ Referral bonus blocked, account banned.`,
@@ -322,20 +323,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'admin_ban_user') {
-      const { target_user_id } = body;
+      const { target_user_id, reason } = body;
       const { data: user } = await supabase.from('users').select('telegram_id, username, first_name').eq('id', target_user_id).single();
       
-      await supabase.from('users').update({ banned: true }).eq('id', target_user_id);
+      const suspensionReason = String(reason || 'Suspicious activity detected by admin').slice(0, 500);
+      await supabase.from('users').update({ banned: true, suspension_reason: suspensionReason, suspended_at: new Date().toISOString() }).eq('id', target_user_id);
 
       await notifyAdmin(
-        `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>`,
+        `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>\nReason: ${suspensionReason}`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
       if (user?.telegram_id) {
         await sendTelegram('sendMessage', {
           chat_id: user.telegram_id,
-          text: `🚫 Your Doggy Cash account has been suspended. Contact support if you believe this is an error.`,
+          text: `🚫 Your Doggy Cash account has been suspended.\n\nReason: ${suspensionReason}\n\nContact support if you believe this is an error.`,
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
