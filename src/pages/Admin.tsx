@@ -5,13 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { adminAction } from "@/lib/api";
+import { adminAction, adminLogin } from "@/lib/api";
 import { toast } from "sonner";
-
-const ADMIN_PASSWORD = "Aabbcc.123";
 
 export default function AdminPanel() {
   const [authed, setAuthed] = useState(false);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   if (!authed) {
@@ -19,10 +18,14 @@ export default function AdminPanel() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="bg-card rounded-2xl p-6 border border-border w-full max-w-sm">
           <h1 className="text-xl font-display font-bold text-center mb-4">🔐 Admin Panel</h1>
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="mb-3" />
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="mb-3" />
-          <Button className="w-full bg-gradient-gold text-primary-foreground" onClick={() => {
-            if (password === ADMIN_PASSWORD) { setAuthed(true); toast.success("✅ Welcome, Admin!"); }
-            else toast.error("Wrong password");
+          <Button className="w-full bg-gradient-gold text-primary-foreground" onClick={async () => {
+            try {
+              const result = await adminLogin(username, password);
+              if (result.success) { sessionStorage.setItem("doggy_admin_token", result.token); setAuthed(true); toast.success("✅ Welcome, Admin!"); }
+              else toast.error("Wrong admin login");
+            } catch { toast.error("Wrong admin login"); }
           }}>Login</Button>
         </div>
       </div>
