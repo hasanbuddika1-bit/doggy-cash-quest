@@ -19,7 +19,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [history, setHistory] = useState<any[]>([]);
   const [hasPending, setHasPending] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [stats, setStats] = useState({ dailyAds: 0, dailyClicks: 0, totalRefs: 0 });
+  const [stats, setStats] = useState({ dailyAds: 0, dailyClicks: 0, totalRefs: 0, telegramTasks: 0, totalTelegramTasks: 0 });
 
   const balance = Number(user?.balance || 0);
   const rate = Number(settings.doggy_to_usdt_rate || 0.0001);
@@ -54,16 +54,23 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
 
-    const [adsRes, clicksRes, refsRes] = await Promise.all([
+    const [adsRes, clicksRes, refsRes, tgTasksRes] = await Promise.all([
       supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
       supabase.from("clicks").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
       supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("verified", true),
+      supabase.from("tasks").select("id").eq("active", true).eq("task_type", "one_click"),
     ]);
+    const telegramTaskIds = (tgTasksRes.data || []).map((t) => t.id);
+    const doneTgRes = telegramTaskIds.length
+      ? await supabase.from("task_submissions").select("id", { count: "exact", head: true }).eq("user_id", userId).in("task_id", telegramTaskIds).eq("status", "approved")
+      : { count: 0 };
 
     setStats({
       dailyAds: adsRes.count || 0,
       dailyClicks: clicksRes.count || 0,
       totalRefs: refsRes.count || 0,
+      telegramTasks: doneTgRes.count || 0,
+      totalTelegramTasks: telegramTaskIds.length,
     });
   }
 
@@ -89,6 +96,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads watched`); return; }
     if (stats.dailyClicks < dailyClicksReq) { toast.error(`Need ${dailyClicksReq} daily clicks`); return; }
     if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} verified referrals`); return; }
+    if (stats.telegramTasks < stats.totalTelegramTasks) { toast.error("Complete all Telegram tasks first"); return; }
 
     setLoading(true);
     try {
@@ -109,6 +117,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     { label: "Daily Watch Ads", required: `${stats.dailyAds}/${dailyAdsReq}`, met: stats.dailyAds >= dailyAdsReq },
     { label: "Daily Clicks", required: `${stats.dailyClicks}/${dailyClicksReq}`, met: stats.dailyClicks >= dailyClicksReq },
     { label: "Total Referrals", required: `${stats.totalRefs}/${totalRefReq}`, met: stats.totalRefs >= totalRefReq },
+    { label: "All Telegram Tasks", required: `${stats.telegramTasks}/${stats.totalTelegramTasks}`, met: stats.telegramTasks >= stats.totalTelegramTasks },
     { label: "Watch Ads (Pre-withdraw)", required: `${Math.min(stats.dailyAds, withdrawAdsReq)}/${withdrawAdsReq}`, met: stats.dailyAds >= withdrawAdsReq },
     { label: "Minimum Amount", required: `${Number(settings.min_withdraw || 500)} 🦴`, met: Number(amount) >= Number(settings.min_withdraw || 500) },
     { label: "Max Withdraw", required: `${maxWithdrawUsdt} USDT`, met: rawUsdt <= maxWithdrawUsdt },
