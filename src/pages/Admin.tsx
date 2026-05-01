@@ -81,16 +81,25 @@ function UsersTab() {
       const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
         supabase.from("ad_watches").select("user_id").in("user_id", ids),
         supabase.from("clicks").select("user_id").in("user_id", ids),
-        supabase.from("task_submissions").select("user_id, status").in("user_id", ids),
+        supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
         supabase.from("referrals").select("referrer_id").in("referrer_id", ids),
         supabase.from("reward_claims").select("user_id").in("user_id", ids),
         supabase.from("withdrawals").select("user_id").in("user_id", ids),
       ]);
+      const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
+      const taskTypes: Record<string, string> = {};
+      if (taskIds.length) {
+        const taskMeta = await supabase.from("tasks").select("id, task_type").in("id", taskIds);
+        (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; });
+      }
       const counts: Record<string, any> = {};
-      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, tasks: 0, refs: 0, codes: 0, withdrawals: 0 }; });
+      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0 }; });
       (ads.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].ads++);
       (clicks.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].clicks++);
-      (tasks.data || []).forEach((r: any) => counts[r.user_id] && r.status === "approved" && counts[r.user_id].tasks++);
+      (tasks.data || []).forEach((r: any) => {
+        if (!counts[r.user_id] || r.status !== "approved") return;
+        taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
+      });
       (refs.data || []).forEach((r: any) => counts[r.referrer_id] && counts[r.referrer_id].refs++);
       (codes.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].codes++);
       (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
@@ -120,7 +129,7 @@ function UsersTab() {
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">Ads {activityCounts[u.id]?.ads || 0} • Clicks {activityCounts[u.id]?.clicks || 0} • Tasks {activityCounts[u.id]?.tasks || 0} • Refs {activityCounts[u.id]?.refs || 0} • Codes {activityCounts[u.id]?.codes || 0}</p>
+                <p className="text-[10px] text-muted-foreground">Ads {activityCounts[u.id]?.ads || 0} • Clicks {activityCounts[u.id]?.clicks || 0} • Admin {activityCounts[u.id]?.adminTasks || 0} • TG {activityCounts[u.id]?.telegramTasks || 0} • Refs {activityCounts[u.id]?.refs || 0} • Codes {activityCounts[u.id]?.codes || 0}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
               </div>
