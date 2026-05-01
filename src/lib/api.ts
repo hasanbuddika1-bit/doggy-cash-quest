@@ -105,8 +105,13 @@ export async function processTelegramTask(userId: string, taskId: string, taskVa
 }
 
 // Admin operations
+export async function adminLogin(username: string, password: string) {
+  return callEdgeFunction("telegram-bot", { action: "admin_login", username, password });
+}
+
 export async function adminAction(action: string, data: any) {
-  return callEdgeFunction("telegram-bot", { action: `admin_${action}`, ...data });
+  const adminToken = sessionStorage.getItem("doggy_admin_token");
+  return callEdgeFunction("telegram-bot", { action: `admin_${action}`, admin_token: adminToken, ...data });
 }
 
 // Read operations via supabase client
