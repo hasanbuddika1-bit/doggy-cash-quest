@@ -5,13 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { adminAction } from "@/lib/api";
+import { adminAction, adminLogin } from "@/lib/api";
 import { toast } from "sonner";
-
-const ADMIN_PASSWORD = "Aabbcc.123";
 
 export default function AdminPanel() {
   const [authed, setAuthed] = useState(false);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   if (!authed) {
@@ -19,10 +18,14 @@ export default function AdminPanel() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="bg-card rounded-2xl p-6 border border-border w-full max-w-sm">
           <h1 className="text-xl font-display font-bold text-center mb-4">🔐 Admin Panel</h1>
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="mb-3" />
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="mb-3" />
-          <Button className="w-full bg-gradient-gold text-primary-foreground" onClick={() => {
-            if (password === ADMIN_PASSWORD) { setAuthed(true); toast.success("✅ Welcome, Admin!"); }
-            else toast.error("Wrong password");
+          <Button className="w-full bg-gradient-gold text-primary-foreground" onClick={async () => {
+            try {
+              const result = await adminLogin(username, password);
+              if (result.success) { sessionStorage.setItem("doggy_admin_token", result.token); setAuthed(true); toast.success("✅ Welcome, Admin!"); }
+              else toast.error("Wrong admin login");
+            } catch { toast.error("Wrong admin login"); }
           }}>Login</Button>
         </div>
       </div>
@@ -63,6 +66,7 @@ export default function AdminPanel() {
 
 function UsersTab() {
   const [users, setUsers] = useState<any[]>([]);
+  const [activityCounts, setActivityCounts] = useState<Record<string, any>>({});
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
@@ -70,7 +74,37 @@ function UsersTab() {
 
   async function loadUsers() {
     const { data } = await supabase.from("users").select("*").order("balance", { ascending: false }).limit(200);
-    setUsers(data || []);
+    const list = data || [];
+    setUsers(list);
+    const ids = list.map((u) => u.id);
+    if (ids.length) {
+      const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
+        supabase.from("ad_watches").select("user_id").in("user_id", ids),
+        supabase.from("clicks").select("user_id").in("user_id", ids),
+        supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
+        supabase.from("referrals").select("referrer_id").in("referrer_id", ids),
+        supabase.from("reward_claims").select("user_id").in("user_id", ids),
+        supabase.from("withdrawals").select("user_id").in("user_id", ids),
+      ]);
+      const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
+      const taskTypes: Record<string, string> = {};
+      if (taskIds.length) {
+        const taskMeta = await supabase.from("tasks").select("id, task_type").in("id", taskIds);
+        (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; });
+      }
+      const counts: Record<string, any> = {};
+      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0 }; });
+      (ads.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].ads++);
+      (clicks.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].clicks++);
+      (tasks.data || []).forEach((r: any) => {
+        if (!counts[r.user_id] || r.status !== "approved") return;
+        taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
+      });
+      (refs.data || []).forEach((r: any) => counts[r.referrer_id] && counts[r.referrer_id].refs++);
+      (codes.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].codes++);
+      (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
+      setActivityCounts(counts);
+    }
   }
 
   const filtered = users.filter(u => 
@@ -95,6 +129,8 @@ function UsersTab() {
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">Ads {activityCounts[u.id]?.ads || 0} • Clicks {activityCounts[u.id]?.clicks || 0} • Admin {activityCounts[u.id]?.adminTasks || 0} • TG {activityCounts[u.id]?.telegramTasks || 0} • Refs {activityCounts[u.id]?.refs || 0} • Codes {activityCounts[u.id]?.codes || 0}</p>
+                {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
               </div>
               <div className="flex gap-1 flex-col" onClick={(e) => e.stopPropagation()}>
@@ -106,7 +142,8 @@ function UsersTab() {
                   }}>Unban</Button>
                 ) : (
                   <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
-                    await adminAction("ban_user", { target_user_id: u.id });
+                    const reason = window.prompt("Suspend reason", "Suspicious activity / invalid balance activity") || "Suspicious activity detected by admin";
+                    await adminAction("ban_user", { target_user_id: u.id, reason });
                     loadUsers();
                     toast.success("User banned");
                   }}>Ban</Button>
@@ -133,21 +170,36 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   const [adWatches, setAdWatches] = useState<any[]>([]);
   const [clicks, setClicks] = useState<any[]>([]);
   const [taskSubs, setTaskSubs] = useState<any[]>([]);
+  const [rewardClaims, setRewardClaims] = useState<any[]>([]);
 
   useEffect(() => {
     const uid = user.id;
     Promise.all([
-      supabase.from("referrals").select("*, users!referrals_referee_id_fkey(username, first_name)").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("referrals").select("*").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("withdrawals").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("ad_watches").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("clicks").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("task_submissions").select("*, tasks(title)").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-    ]).then(([refs, wds, ads, cls, tsks]) => {
-      setReferrals(refs.data || []);
+      supabase.from("task_submissions").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("reward_claims").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+    ]).then(async ([refs, wds, ads, cls, tsks, codes]) => {
+      const refereeIds = (refs.data || []).map((r: any) => r.referee_id).filter(Boolean);
+      const taskIds = (tsks.data || []).map((t: any) => t.task_id).filter(Boolean);
+      const codeIds = (codes.data || []).map((c: any) => c.code_id).filter(Boolean);
+      const [refUsers, taskMeta, codeMeta] = await Promise.all([
+        refereeIds.length ? supabase.from("users").select("id, username, first_name, telegram_id").in("id", refereeIds) : Promise.resolve({ data: [] as any[] }),
+        taskIds.length ? supabase.from("tasks").select("id, title, task_type").in("id", taskIds) : Promise.resolve({ data: [] as any[] }),
+        codeIds.length ? supabase.from("reward_codes").select("id, code").in("id", codeIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const refMap: Record<string, any> = {}, taskMap: Record<string, any> = {}, codeMap: Record<string, any> = {};
+      (refUsers.data || []).forEach((u: any) => { refMap[u.id] = u; });
+      (taskMeta.data || []).forEach((t: any) => { taskMap[t.id] = t; });
+      (codeMeta.data || []).forEach((c: any) => { codeMap[c.id] = c; });
+      setReferrals((refs.data || []).map((r: any) => ({ ...r, referred_user: refMap[r.referee_id] })));
       setWithdrawals(wds.data || []);
       setAdWatches(ads.data || []);
       setClicks(cls.data || []);
-      setTaskSubs(tsks.data || []);
+      setTaskSubs((tsks.data || []).map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
+      setRewardClaims((codes.data || []).map((c: any) => ({ ...c, reward_code: codeMap[c.code_id] })));
     });
   }, [user.id]);
 
@@ -162,7 +214,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
       </div>
 
       <div className="bg-card rounded-lg p-3 border border-border">
-        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length}</p>
+        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length} | Codes: {rewardClaims.length}</p>
       </div>
 
       {referrals.length > 0 && (
@@ -170,7 +222,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p className="text-xs font-bold mb-1">👥 Referrals</p>
           {referrals.map(r => (
             <p key={r.id} className="text-[10px] text-muted-foreground">
-              {(r.users as any)?.first_name || (r.users as any)?.username || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
+              @{r.referred_user?.username || r.referred_user?.first_name || r.referred_user?.telegram_id || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
             </p>
           ))}
         </div>
@@ -203,7 +255,18 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p className="text-xs font-bold mb-1">📋 Task Submissions</p>
           {taskSubs.map(t => (
             <p key={t.id} className="text-[10px] text-muted-foreground">
-              {(t.tasks as any)?.title || 'Unknown'} — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+              {t.task?.title || 'Unknown'} ({t.task?.task_type === 'one_click' ? 'TG' : 'Admin'}) — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {rewardClaims.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🎁 Reward Codes</p>
+          {rewardClaims.map(c => (
+            <p key={c.id} className="text-[10px] text-muted-foreground">
+              {c.reward_code?.code || 'Code'} — +{c.amount} 🦴 | {new Date(c.created_at).toLocaleDateString()}
             </p>
           ))}
         </div>

@@ -422,6 +422,8 @@ export type Database = {
           ip_address: string | null
           photo_url: string | null
           referrer_id: string | null
+          suspended_at: string | null
+          suspension_reason: string | null
           telegram_id: number
           updated_at: string
           username: string | null
@@ -439,6 +441,8 @@ export type Database = {
           ip_address?: string | null
           photo_url?: string | null
           referrer_id?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           telegram_id: number
           updated_at?: string
           username?: string | null
@@ -456,6 +460,8 @@ export type Database = {
           ip_address?: string | null
           photo_url?: string | null
           referrer_id?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           telegram_id?: number
           updated_at?: string
           username?: string | null

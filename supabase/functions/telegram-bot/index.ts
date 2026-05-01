@@ -3,6 +3,10 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const ADMIN_CHAT_ID = '5419054691';
+const ADMIN_USERNAME = 'Buddika12';
+const ADMIN_PASSWORD = 'Aabbcc.123';
+const ADMIN_SESSION_TOKEN = 'doggy_admin_session_2026_05_secure';
+const MIN_AD_SECONDS = 33;
 
 async function sendTelegram(method: string, body: any, lovableKey: string, telegramKey: string) {
   const res = await fetch(`${GATEWAY_URL}/${method}`, {
@@ -48,6 +52,18 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    if (action === 'admin_login') {
+      const { username, password } = body;
+      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        return new Response(JSON.stringify({ success: true, token: ADMIN_SESSION_TOKEN }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ success: false, message: 'Invalid admin login' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (String(action || '').startsWith('admin_') && body.admin_token !== ADMIN_SESSION_TOKEN) {
+      return new Response(JSON.stringify({ error: 'Unauthorized admin action' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if (action === 'get_or_create_user') {
       const { telegram_id, username, first_name, photo_url, referrer_id } = body;
       
@@ -81,8 +97,9 @@ Deno.serve(async (req) => {
         if (sameIpReferralBlock) {
           const { data: existingUsers } = await supabase.from('users').select('id').eq('ip_address', clientIp).neq('id', user.id);
           if (existingUsers && existingUsers.length > 0) {
-            await supabase.from('users').update({ banned: true }).eq('id', user.id);
+            await supabase.from('users').update({ banned: true, suspension_reason: 'Same IP / multiple accounts detected', suspended_at: new Date().toISOString() }).eq('id', user.id);
             user.banned = true;
+            user.suspension_reason = 'Same IP / multiple accounts detected';
             
             await notifyAdmin(
               `🚫 <b>Auto-Ban: Same IP Detected!</b>\n\nNew: ${first_name || 'N/A'} (@${username || 'N/A'})\nTelegram ID: <code>${telegram_id}</code>\nIP: <code>${clientIp}</code>\nExisting accounts on this IP: ${existingUsers.length}\n\n⚠️ Referral bonus blocked, account banned.`,
@@ -306,20 +323,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'admin_ban_user') {
-      const { target_user_id } = body;
+      const { target_user_id, reason } = body;
       const { data: user } = await supabase.from('users').select('telegram_id, username, first_name').eq('id', target_user_id).single();
       
-      await supabase.from('users').update({ banned: true }).eq('id', target_user_id);
+      const suspensionReason = String(reason || 'Suspicious activity detected by admin').slice(0, 500);
+      await supabase.from('users').update({ banned: true, suspension_reason: suspensionReason, suspended_at: new Date().toISOString() }).eq('id', target_user_id);
 
       await notifyAdmin(
-        `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>`,
+        `🚫 <b>Account Suspended</b>\n\nUser: ${user?.first_name || 'N/A'} (@${user?.username || 'N/A'})\nID: <code>${target_user_id}</code>\nReason: ${suspensionReason}`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
       if (user?.telegram_id) {
         await sendTelegram('sendMessage', {
           chat_id: user.telegram_id,
-          text: `🚫 Your Doggy Cash account has been suspended. Contact support if you believe this is an error.`,
+          text: `🚫 Your Doggy Cash account has been suspended.\n\nReason: ${suspensionReason}\n\nContact support if you believe this is an error.`,
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
@@ -358,13 +376,21 @@ Deno.serve(async (req) => {
 
     // Process ad reward (from WatchAdsTab)
     if (action === 'process_ad_reward') {
-      const { user_id, ad_index, earned } = body;
+      const { user_id, ad_index, earned, watch_seconds } = body;
       const { data: user } = await supabase.from('users').select('balance, banned').eq('id', user_id).single();
       if (!user) throw new Error('User not found');
       if (user.banned) throw new Error('Account suspended');
+      const adIndex = Number(ad_index);
+      const earnedAmount = Math.max(1, Math.min(100, Number(earned || 20)));
+      if (!Number.isInteger(adIndex) || adIndex < 1 || adIndex > 10) throw new Error('Invalid ad slot');
+      if (Number(watch_seconds || 0) < MIN_AD_SECONDS) throw new Error('Ad was closed early');
 
-      await supabase.from('ad_watches').insert({ user_id, ad_index, earned: earned || 20 });
-      await supabase.from('users').update({ balance: Number(user.balance) + Number(earned || 20) }).eq('id', user_id);
+      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+      const { data: recent } = await supabase.from('ad_watches').select('id').eq('user_id', user_id).eq('ad_index', adIndex).gte('created_at', oneHourAgo).limit(1);
+      if (recent && recent.length > 0) throw new Error('This ad is still on cooldown');
+
+      await supabase.from('ad_watches').insert({ user_id, ad_index: adIndex, earned: earnedAmount });
+      await supabase.from('users').update({ balance: Number(user.balance) + earnedAmount }).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -378,19 +404,34 @@ Deno.serve(async (req) => {
     // Process telegram task (one-click)
     if (action === 'process_telegram_task') {
       const { user_id, task_id, task_value } = body;
+      const { data: task } = await supabase.from('tasks').select('value, task_type, active').eq('id', task_id).single();
+      if (!task || task.task_type !== 'one_click' || !task.active) throw new Error('Invalid Telegram task');
       const { data: existing } = await supabase.from('task_submissions').select('id').eq('user_id', user_id).eq('task_id', task_id).single();
       if (existing) return new Response(JSON.stringify({ success: false, message: 'Already completed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       
       await supabase.from('task_submissions').insert({ user_id, task_id, status: 'approved' });
       const { data: user } = await supabase.from('users').select('balance').eq('id', user_id).single();
-      await supabase.from('users').update({ balance: Number(user?.balance || 0) + Number(task_value || 0) }).eq('id', user_id);
+      await supabase.from('users').update({ balance: Number(user?.balance || 0) + Number(task.value || task_value || 0) }).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Admin CRUD operations
     if (action === 'admin_update_user') {
       const { target_user_id, updates } = body;
-      await supabase.from('users').update(updates).eq('id', target_user_id);
+      const safeUpdates: Record<string, unknown> = {};
+      for (const key of ['banned', 'access_tasks_completed', 'wallet_address', 'suspension_reason'] as const) {
+        if (Object.prototype.hasOwnProperty.call(updates || {}, key)) safeUpdates[key] = updates[key];
+      }
+      if (safeUpdates.banned === false) {
+        safeUpdates.suspension_reason = null;
+        safeUpdates.suspended_at = null;
+      }
+      if (safeUpdates.banned === true && !safeUpdates.suspension_reason) {
+        safeUpdates.suspension_reason = 'Suspicious activity detected by admin';
+        safeUpdates.suspended_at = new Date().toISOString();
+      }
+      if (Object.keys(safeUpdates).length === 0) throw new Error('No allowed user updates');
+      await supabase.from('users').update(safeUpdates).eq('id', target_user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 

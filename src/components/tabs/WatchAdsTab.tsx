@@ -12,7 +12,7 @@ interface WatchAdsTabProps {
 }
 
 const AD_COUNT = 10;
-const ADSGRAM_BLOCK_ID = "int-27106";
+const ADSGRAM_BLOCK_ID = "27106";
 const MIN_WATCH_SECONDS = 33;
 
 export function WatchAdsTab({ userId }: WatchAdsTabProps) {
@@ -83,8 +83,8 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     setWatchingAd(adIndex);
     
     try {
-      // Try Adsgram
-      const AdController = (window as any).Adsgram?.init?.({ blockId: ADSGRAM_BLOCK_ID });
+      const Adsgram = (window as any).Adsgram;
+      const AdController = Adsgram?.init?.({ blockId: ADSGRAM_BLOCK_ID, debug: false });
       if (AdController) {
         const startTime = Date.now();
         try {
@@ -97,8 +97,9 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             return;
           }
           
-          await handleProcessAdReward(adIndex);
-        } catch {
+          await handleProcessAdReward(adIndex, watchDuration);
+        } catch (error: any) {
+          if (String(error?.message || error).toLowerCase().includes("blockid")) toast.error("Adsgram reward block must use reward ID without int- prefix");
           // User closed ad early
           const watchDuration = (Date.now() - startTime) / 1000;
           if (watchDuration < MIN_WATCH_SECONDS) {
@@ -106,13 +107,12 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             setWatchingAd(null);
             return;
           }
-          await handleProcessAdReward(adIndex);
+          await handleProcessAdReward(adIndex, watchDuration);
         }
       } else {
-        // Fallback: simulate ad
-        toast.info("📺 Ad is loading... Please wait");
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        await handleProcessAdReward(adIndex);
+        toast.error("Ads not ready. Please start the bot and try again.");
+        setShowAdError(true);
+        setWatchingAd(null);
       }
     } catch {
       toast.error("Failed to load ad");
@@ -120,10 +120,10 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
     }
   }
 
-  async function handleProcessAdReward(adIndex: number) {
+  async function handleProcessAdReward(adIndex: number, watchSeconds: number) {
     try {
       const adReward = getAdReward(adIndex);
-      await processAdReward(userId, adIndex, adReward);
+      await processAdReward(userId, adIndex, adReward, watchSeconds);
       setReward({ show: true, amount: adReward });
       loadWatchHistory();
     } catch {

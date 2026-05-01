@@ -416,8 +416,15 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
 
   const loadReferrals = useCallback(async () => {
     const { data } = await supabase.from("referrals").select("*").eq("referrer_id", userId);
-    setReferrals(data || []);
-    const unclaimed = (data || []).filter(r => r.verified && !r.reward_claimed);
+    const refereeIds = (data || []).map((r) => r.referee_id).filter(Boolean);
+    let userMap: Record<string, any> = {};
+    if (refereeIds.length) {
+      const { data: referredUsers } = await supabase.from("users").select("id, username, first_name, telegram_id").in("id", refereeIds);
+      (referredUsers || []).forEach((u) => { userMap[u.id] = u; });
+    }
+    const enriched = (data || []).map((r) => ({ ...r, referred_user: userMap[r.referee_id] }));
+    setReferrals(enriched);
+    const unclaimed = enriched.filter(r => r.verified && !r.reward_claimed);
     setReferBalance(unclaimed.reduce((sum: number, r: any) => sum + Number(r.reward_amount), 0));
   }, [userId]);
 
@@ -478,6 +485,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
             className="flex items-center justify-between bg-card rounded-xl p-3 border border-border mb-2"
           >
             <div>
+              <p className="text-xs font-semibold">@{r.referred_user?.username || r.referred_user?.first_name || r.referred_user?.telegram_id || 'Unknown'}</p>
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.verified ? 'bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))]' : 'bg-primary/20 text-primary'}`}>
                 {r.verified ? '✅ Verified' : '⏳ Not Verified'}
               </span>

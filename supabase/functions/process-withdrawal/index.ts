@@ -83,6 +83,20 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} verified referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Check all active Telegram tasks are completed
+    const { data: telegramTasks } = await supabase.from('tasks').select('id').eq('active', true).eq('task_type', 'one_click');
+    const telegramTaskIds = (telegramTasks || []).map((task) => task.id);
+    if (telegramTaskIds.length > 0) {
+      const { count: completedTelegramTasks } = await supabase.from('task_submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user_id)
+        .in('task_id', telegramTaskIds)
+        .eq('status', 'approved');
+      if ((completedTelegramTasks || 0) < telegramTaskIds.length) {
+        return new Response(JSON.stringify({ success: false, message: 'Complete all Telegram tasks before withdrawing' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     // Calculate fees
     const fee = feeFixed + (grossUsdt * feePercent / 100);
     const netUsdt = Math.max(0, grossUsdt - fee);
