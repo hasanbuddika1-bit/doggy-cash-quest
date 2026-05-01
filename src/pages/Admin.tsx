@@ -66,6 +66,7 @@ export default function AdminPanel() {
 
 function UsersTab() {
   const [users, setUsers] = useState<any[]>([]);
+  const [activityCounts, setActivityCounts] = useState<Record<string, any>>({});
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
@@ -73,7 +74,28 @@ function UsersTab() {
 
   async function loadUsers() {
     const { data } = await supabase.from("users").select("*").order("balance", { ascending: false }).limit(200);
-    setUsers(data || []);
+    const list = data || [];
+    setUsers(list);
+    const ids = list.map((u) => u.id);
+    if (ids.length) {
+      const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
+        supabase.from("ad_watches").select("user_id").in("user_id", ids),
+        supabase.from("clicks").select("user_id").in("user_id", ids),
+        supabase.from("task_submissions").select("user_id, status").in("user_id", ids),
+        supabase.from("referrals").select("referrer_id").in("referrer_id", ids),
+        supabase.from("reward_claims").select("user_id").in("user_id", ids),
+        supabase.from("withdrawals").select("user_id").in("user_id", ids),
+      ]);
+      const counts: Record<string, any> = {};
+      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, tasks: 0, refs: 0, codes: 0, withdrawals: 0 }; });
+      (ads.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].ads++);
+      (clicks.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].clicks++);
+      (tasks.data || []).forEach((r: any) => counts[r.user_id] && r.status === "approved" && counts[r.user_id].tasks++);
+      (refs.data || []).forEach((r: any) => counts[r.referrer_id] && counts[r.referrer_id].refs++);
+      (codes.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].codes++);
+      (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
+      setActivityCounts(counts);
+    }
   }
 
   const filtered = users.filter(u => 
@@ -98,6 +120,8 @@ function UsersTab() {
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
                 <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">Ads {activityCounts[u.id]?.ads || 0} • Clicks {activityCounts[u.id]?.clicks || 0} • Tasks {activityCounts[u.id]?.tasks || 0} • Refs {activityCounts[u.id]?.refs || 0} • Codes {activityCounts[u.id]?.codes || 0}</p>
+                {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
               </div>
               <div className="flex gap-1 flex-col" onClick={(e) => e.stopPropagation()}>
@@ -109,7 +133,8 @@ function UsersTab() {
                   }}>Unban</Button>
                 ) : (
                   <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
-                    await adminAction("ban_user", { target_user_id: u.id });
+                    const reason = window.prompt("Suspend reason", "Suspicious activity / invalid balance activity") || "Suspicious activity detected by admin";
+                    await adminAction("ban_user", { target_user_id: u.id, reason });
                     loadUsers();
                     toast.success("User banned");
                   }}>Ban</Button>
