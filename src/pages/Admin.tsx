@@ -170,21 +170,36 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   const [adWatches, setAdWatches] = useState<any[]>([]);
   const [clicks, setClicks] = useState<any[]>([]);
   const [taskSubs, setTaskSubs] = useState<any[]>([]);
+  const [rewardClaims, setRewardClaims] = useState<any[]>([]);
 
   useEffect(() => {
     const uid = user.id;
     Promise.all([
-      supabase.from("referrals").select("*, users!referrals_referee_id_fkey(username, first_name)").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("referrals").select("*").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("withdrawals").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("ad_watches").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
       supabase.from("clicks").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("task_submissions").select("*, tasks(title)").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-    ]).then(([refs, wds, ads, cls, tsks]) => {
-      setReferrals(refs.data || []);
+      supabase.from("task_submissions").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+      supabase.from("reward_claims").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
+    ]).then(async ([refs, wds, ads, cls, tsks, codes]) => {
+      const refereeIds = (refs.data || []).map((r: any) => r.referee_id).filter(Boolean);
+      const taskIds = (tsks.data || []).map((t: any) => t.task_id).filter(Boolean);
+      const codeIds = (codes.data || []).map((c: any) => c.code_id).filter(Boolean);
+      const [refUsers, taskMeta, codeMeta] = await Promise.all([
+        refereeIds.length ? supabase.from("users").select("id, username, first_name, telegram_id").in("id", refereeIds) : Promise.resolve({ data: [] as any[] }),
+        taskIds.length ? supabase.from("tasks").select("id, title, task_type").in("id", taskIds) : Promise.resolve({ data: [] as any[] }),
+        codeIds.length ? supabase.from("reward_codes").select("id, code").in("id", codeIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const refMap: Record<string, any> = {}, taskMap: Record<string, any> = {}, codeMap: Record<string, any> = {};
+      (refUsers.data || []).forEach((u: any) => { refMap[u.id] = u; });
+      (taskMeta.data || []).forEach((t: any) => { taskMap[t.id] = t; });
+      (codeMeta.data || []).forEach((c: any) => { codeMap[c.id] = c; });
+      setReferrals((refs.data || []).map((r: any) => ({ ...r, referred_user: refMap[r.referee_id] })));
       setWithdrawals(wds.data || []);
       setAdWatches(ads.data || []);
       setClicks(cls.data || []);
-      setTaskSubs(tsks.data || []);
+      setTaskSubs((tsks.data || []).map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
+      setRewardClaims((codes.data || []).map((c: any) => ({ ...c, reward_code: codeMap[c.code_id] })));
     });
   }, [user.id]);
 
@@ -199,7 +214,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
       </div>
 
       <div className="bg-card rounded-lg p-3 border border-border">
-        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length}</p>
+        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length} | Codes: {rewardClaims.length}</p>
       </div>
 
       {referrals.length > 0 && (
@@ -207,7 +222,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p className="text-xs font-bold mb-1">👥 Referrals</p>
           {referrals.map(r => (
             <p key={r.id} className="text-[10px] text-muted-foreground">
-              {(r.users as any)?.first_name || (r.users as any)?.username || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
+              @{r.referred_user?.username || r.referred_user?.first_name || r.referred_user?.telegram_id || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
             </p>
           ))}
         </div>
@@ -240,7 +255,18 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p className="text-xs font-bold mb-1">📋 Task Submissions</p>
           {taskSubs.map(t => (
             <p key={t.id} className="text-[10px] text-muted-foreground">
-              {(t.tasks as any)?.title || 'Unknown'} — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+              {t.task?.title || 'Unknown'} ({t.task?.task_type === 'one_click' ? 'TG' : 'Admin'}) — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {rewardClaims.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🎁 Reward Codes</p>
+          {rewardClaims.map(c => (
+            <p key={c.id} className="text-[10px] text-muted-foreground">
+              {c.reward_code?.code || 'Code'} — +{c.amount} 🦴 | {new Date(c.created_at).toLocaleDateString()}
             </p>
           ))}
         </div>
