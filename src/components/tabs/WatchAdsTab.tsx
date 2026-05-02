@@ -150,15 +150,8 @@ export function WatchAdsTab({ userId }: WatchAdsTabProps) {
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">No Bones Found!</h3>
             <p className="text-sm text-gray-600 mb-4">
-              You must fully watch the ad (at least 33 seconds) to earn your bones. 🦴
+              👆 Tap on the ad shown and start the bots that are advertised. Then come back and try again! 🦴
             </p>
-            <a 
-              href="https://t.me/Doggycash1bot" 
-              target="_blank"
-              className="inline-block text-sm text-blue-600 underline mb-4"
-            >
-              🤖 Start our bot first
-            </a>
             <Button 
               onClick={() => setShowAdError(false)}
               className="w-full h-12 rounded-2xl bg-gradient-to-r from-amber-800 to-amber-900 text-white font-bold text-lg"
