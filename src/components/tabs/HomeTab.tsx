@@ -176,7 +176,7 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <span className="text-xl">{app.name.includes("Dogs") ? "🐕" : "💎"}</span>
+                  <span className="text-xl">{(app as any).emoji || "🎮"}</span>
                 </div>
                 <div>
                   <p className="font-display font-bold text-sm">{app.name}</p>
