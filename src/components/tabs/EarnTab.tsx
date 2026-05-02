@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { processClick, claimRewardCode, claimReferralReward, submitTask, verifyChannel, processTelegramTask } from "@/lib/api";
+import { showMonetagAd } from "@/lib/monetag";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
@@ -432,6 +433,8 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
 
   async function handleClaim(referralId: string, amount: number) {
     try {
+      toast.info("📺 Watch a quick ad to claim...");
+      await showMonetagAd();
       await claimReferralReward(userId, referralId);
       setReward({ show: true, amount });
       loadReferrals();
@@ -522,6 +525,8 @@ function RewardCodeSection({ userId }: { userId: string }) {
     if (!code.trim()) return;
     setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to claim...");
+      await showMonetagAd();
       const result = await claimRewardCode(userId, code.trim());
       if (result.success) {
         setReward({ show: true, amount: result.amount });

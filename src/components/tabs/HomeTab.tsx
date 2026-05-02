@@ -49,12 +49,11 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
     { icon: <Users className="w-4 h-4 text-blue-400" />, label: "Total Users", value: appStats.totalUsers, bg: "from-blue-500/15 to-blue-500/5" },
     { icon: <Wifi className="w-4 h-4 text-green-400" />, label: "Online", value: appStats.onlineUsers, bg: "from-green-500/15 to-green-500/5" },
     { icon: <CalendarPlus className="w-4 h-4 text-purple-400" />, label: "Today", value: appStats.todayJoins, bg: "from-purple-500/15 to-purple-500/5" },
-    { icon: <Coins className="w-4 h-4 text-amber-400" />, label: "Paid", value: `$${appStats.totalPaid}`, bg: "from-amber-500/15 to-amber-500/5" },
+    { icon: <Coins className="w-4 h-4 text-amber-400" />, label: "Paid", value: `$${Number(appStats.totalPaid).toFixed(3)}`, bg: "from-amber-500/15 to-amber-500/5" },
   ];
 
   const otherApps = [
-    { name: "Free Dogs Pay 🐕", link: "https://t.me/Freedogspaybot1422Bot?startapp=home", color: "from-blue-500/20 to-cyan-500/10", border: "border-blue-500/30" },
-    { name: "Free TRX Pay 💎", link: "https://t.me/Freetrxpaybot132bot?startapp=ref_5419054691", color: "from-purple-500/20 to-pink-500/10", border: "border-purple-500/30" },
+    { name: "Puppy Profit 🐶", link: "https://t.me/Puppyprofitbot?startapp", color: "from-amber-500/20 to-orange-500/10", border: "border-amber-500/30", emoji: "🐶" },
   ];
 
   function openLink(url: string) {
@@ -177,7 +176,7 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <span className="text-xl">{app.name.includes("Dogs") ? "🐕" : "💎"}</span>
+                  <span className="text-xl">{(app as any).emoji || "🎮"}</span>
                 </div>
                 <div>
                   <p className="font-display font-bold text-sm">{app.name}</p>

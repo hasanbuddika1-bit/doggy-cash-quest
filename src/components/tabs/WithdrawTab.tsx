@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet } from "@/lib/api";
+import { showMonetagAd } from "@/lib/monetag";
 import { toast } from "sonner";
 
 interface WithdrawTabProps {
@@ -100,6 +101,8 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
     setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to submit your request...");
+      await showMonetagAd();
       const result = await submitWithdrawal(userId, Number(amount), walletAddress);
       if (result.success) {
         toast.success("📤 Withdrawal request submitted!");

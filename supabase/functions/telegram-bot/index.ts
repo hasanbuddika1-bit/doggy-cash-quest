@@ -290,12 +290,30 @@ Deno.serve(async (req) => {
         const netAmount = Number(w.net_usdt || w.usdt_amount);
         await sendTelegram('sendMessage', {
           chat_id: (w.users as any).telegram_id,
-          text: `✅ Your withdrawal of ${w.amount} Doggy has been approved!\n\n💰 Net amount: $${netAmount.toFixed(4)} USDT\n📤 To: ${w.wallet_address}`,
+          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Net: <b>$${netAmount.toFixed(4)} USDT</b>\n📤 Wallet: <code>${w.wallet_address}</code>\n\nThanks for using Doggy Cash! 🐶`,
+          parse_mode: 'HTML',
           reply_markup: JSON.stringify({
-            inline_keyboard: [[{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }]],
+            inline_keyboard: [
+              [{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }],
+              [{ text: '🐶 Open Mini App', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }],
+            ],
           }),
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
+
+      // Post to public payment channel with Open Mini App button
+      try {
+        const netAmount = Number(w.net_usdt || w.usdt_amount);
+        const uname = (w.users as any)?.username ? `@${(w.users as any).username}` : 'a user';
+        await sendTelegram('sendMessage', {
+          chat_id: '@bluetonpayment',
+          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Paid: <b>$${netAmount.toFixed(4)} USDT</b>\n\n🐶 Earn yours on Doggy Cash!`,
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }]],
+          }),
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      } catch { /* channel post optional */ }
 
       await notifyAdmin(
         `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nNet USDT: $${Number(w.net_usdt || w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>`,
@@ -347,28 +365,43 @@ Deno.serve(async (req) => {
     if (action === 'admin_broadcast') {
       const { text, image_url, button_text, button_url } = body;
       const { data: users } = await supabase.from('users').select('telegram_id').eq('banned', false);
-      
+
+      // Add emojis if message has none
+      const hasEmoji = /[\p{Emoji}]/u.test(String(text || ''));
+      const finalText = hasEmoji ? text : `📢 ${text} 🐶💰`;
+
+      const buildBody = (chatId: number | string) => {
+        const msgBody: any = { chat_id: chatId, parse_mode: 'HTML' };
+        const replyMarkup = button_text && button_url
+          ? JSON.stringify({ inline_keyboard: [[{ text: button_text, url: button_url }]] })
+          : undefined;
+        if (image_url) {
+          msgBody.photo = image_url;
+          msgBody.caption = finalText;
+          if (replyMarkup) msgBody.reply_markup = replyMarkup;
+        } else {
+          msgBody.text = finalText;
+          if (replyMarkup) msgBody.reply_markup = replyMarkup;
+        }
+        return msgBody;
+      };
+      const method = image_url ? 'sendPhoto' : 'sendMessage';
+
+      // Send to community channel first (best-effort)
+      try {
+        await sendTelegram(method, buildBody('@doggycash12'), LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      } catch { /* optional */ }
+
+      // Send to all members in parallel batches for speed
+      const recipients = (users || []).map(u => u.telegram_id);
+      const BATCH_SIZE = 25;
       let sent = 0;
-      for (const u of (users || [])) {
-        try {
-          const msgBody: any = { chat_id: u.telegram_id, parse_mode: 'HTML' };
-          
-          if (image_url) {
-            msgBody.photo = image_url;
-            msgBody.caption = text;
-            if (button_text && button_url) {
-              msgBody.reply_markup = JSON.stringify({ inline_keyboard: [[{ text: button_text, url: button_url }]] });
-            }
-            await sendTelegram('sendPhoto', msgBody, LOVABLE_API_KEY, TELEGRAM_API_KEY);
-          } else {
-            msgBody.text = text;
-            if (button_text && button_url) {
-              msgBody.reply_markup = JSON.stringify({ inline_keyboard: [[{ text: button_text, url: button_url }]] });
-            }
-            await sendTelegram('sendMessage', msgBody, LOVABLE_API_KEY, TELEGRAM_API_KEY);
-          }
-          sent++;
-        } catch { /* skip failed */ }
+      for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+        const batch = recipients.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(id => sendTelegram(method, buildBody(id), LOVABLE_API_KEY, TELEGRAM_API_KEY))
+        );
+        sent += results.filter(r => r.status === 'fulfilled').length;
       }
 
       return new Response(JSON.stringify({ success: true, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
