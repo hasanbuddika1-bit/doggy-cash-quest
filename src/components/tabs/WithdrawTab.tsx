@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet } from "@/lib/api";
+import { showMonetagAd } from "@/lib/monetag";
 import { toast } from "sonner";
 
 interface WithdrawTabProps {
