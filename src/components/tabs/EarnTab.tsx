@@ -433,6 +433,8 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
 
   async function handleClaim(referralId: string, amount: number) {
     try {
+      toast.info("📺 Watch a quick ad to claim...");
+      await showMonetagAd();
       await claimReferralReward(userId, referralId);
       setReward({ show: true, amount });
       loadReferrals();
