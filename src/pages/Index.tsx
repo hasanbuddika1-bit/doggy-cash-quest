@@ -28,6 +28,7 @@ const Index = () => {
 
   // Auto-play ad on app open
   const playAutoAd = useCallback(() => {
+    const firstDelay = 1000 + Math.random() * 4000; // 1-5s
     setTimeout(() => {
       try {
         const AdController = (window as any).Adsgram?.init?.({ blockId: ADSGRAM_AUTO_BLOCK });
@@ -35,11 +36,11 @@ const Index = () => {
           AdController.show().catch(() => {});
         }
       } catch { /* ignore */ }
-    }, 3000);
+    }, firstDelay);
 
-    // Schedule recurring ads every 25-50 seconds
+    // Schedule recurring ads every 45-75 seconds
     const scheduleNext = () => {
-      const delay = 25000 + Math.random() * 25000; // 25-50s
+      const delay = 45000 + Math.random() * 30000; // 45-75s
       setTimeout(() => {
         try {
           const AdController = (window as any).Adsgram?.init?.({ blockId: ADSGRAM_AUTO_BLOCK });
