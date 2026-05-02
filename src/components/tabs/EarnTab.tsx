@@ -525,6 +525,8 @@ function RewardCodeSection({ userId }: { userId: string }) {
     if (!code.trim()) return;
     setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to claim...");
+      await showMonetagAd();
       const result = await claimRewardCode(userId, code.trim());
       if (result.success) {
         setReward({ show: true, amount: result.amount });
