@@ -101,6 +101,8 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
     setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to submit your request...");
+      await showMonetagAd();
       const result = await submitWithdrawal(userId, Number(amount), walletAddress);
       if (result.success) {
         toast.success("📤 Withdrawal request submitted!");
