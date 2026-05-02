@@ -290,12 +290,30 @@ Deno.serve(async (req) => {
         const netAmount = Number(w.net_usdt || w.usdt_amount);
         await sendTelegram('sendMessage', {
           chat_id: (w.users as any).telegram_id,
-          text: `✅ Your withdrawal of ${w.amount} Doggy has been approved!\n\n💰 Net amount: $${netAmount.toFixed(4)} USDT\n📤 To: ${w.wallet_address}`,
+          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Net: <b>$${netAmount.toFixed(4)} USDT</b>\n📤 Wallet: <code>${w.wallet_address}</code>\n\nThanks for using Doggy Cash! 🐶`,
+          parse_mode: 'HTML',
           reply_markup: JSON.stringify({
-            inline_keyboard: [[{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }]],
+            inline_keyboard: [
+              [{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }],
+              [{ text: '🐶 Open Mini App', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }],
+            ],
           }),
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
+
+      // Post to public payment channel with Open Mini App button
+      try {
+        const netAmount = Number(w.net_usdt || w.usdt_amount);
+        const uname = (w.users as any)?.username ? `@${(w.users as any).username}` : 'a user';
+        await sendTelegram('sendMessage', {
+          chat_id: '@bluetonpayment',
+          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Paid: <b>$${netAmount.toFixed(4)} USDT</b>\n\n🐶 Earn yours on Doggy Cash!`,
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }]],
+          }),
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      } catch { /* channel post optional */ }
 
       await notifyAdmin(
         `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nNet USDT: $${Number(w.net_usdt || w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>`,
