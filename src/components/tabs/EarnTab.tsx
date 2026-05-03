@@ -197,14 +197,34 @@ function TasksSection({ userId }: { userId: string }) {
                       </Button>
                     )}
                     {task.requires_image && (
-                      <label className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-3 cursor-pointer border border-dashed border-amber-500/30">
-                        <Upload className="w-5 h-5 text-amber-400" />
-                        <span className="text-xs text-amber-300 font-semibold">📷 Upload screenshot proof</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleImageUpload(task.id, f);
-                        }} />
-                      </label>
+                      uploadingTask === task.id ? (
+                        <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg p-3 border border-amber-500/40">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                            <span className="text-xs text-amber-300 font-semibold">
+                              {uploadProgress < 95 ? "Uploading screenshot..." : uploadProgress < 100 ? "Submitting..." : "✅ Done!"}
+                            </span>
+                            <span className="ml-auto text-xs font-bold text-amber-300">{Math.round(uploadProgress)}%</span>
+                          </div>
+                          <div className="h-2 bg-background/50 rounded-full overflow-hidden">
+                            <motion.div
+                              className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-yellow-400"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${uploadProgress}%` }}
+                              transition={{ duration: 0.3 }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-3 cursor-pointer border border-dashed border-amber-500/30 hover:border-amber-500/60 transition-colors">
+                          <Upload className="w-5 h-5 text-amber-400" />
+                          <span className="text-xs text-amber-300 font-semibold">📷 Upload screenshot proof</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleImageUpload(task.id, f);
+                          }} />
+                        </label>
+                      )
                     )}
                   </div>
                 </motion.div>
