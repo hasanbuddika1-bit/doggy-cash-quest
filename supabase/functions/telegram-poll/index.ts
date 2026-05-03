@@ -4,9 +4,9 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
-const MINI_APP_URL = 'https://doggy-cash-quest.lovable.app';
+const MINI_APP_URL = 'https://t.me/Doggycash1bot?startapp=home';
 const COMMUNITY_URL = 'https://t.me/doggycash12';
-const START_PHOTO = 'https://doggy-cash-quest.lovable.app/placeholder.svg';
+const START_PHOTO = 'https://doggy-cash-quest.lovable.app/welcome.jpg';
 
 async function tg(method: string, body: any, lovableKey: string, tgKey: string) {
   const res = await fetch(`${GATEWAY_URL}/${method}`, {
@@ -18,31 +18,32 @@ async function tg(method: string, body: any, lovableKey: string, tgKey: string) 
     },
     body: JSON.stringify(body),
   });
-  return res.json();
+  const json = await res.json();
+  if (!json?.ok) console.error(`[tg ${method}] failed:`, JSON.stringify(json));
+  return json;
 }
 
 async function handleStart(chatId: number, firstName: string, lovableKey: string, tgKey: string) {
   const caption = `🐶 <b>Welcome to Doggy Cash, ${firstName || 'Friend'}!</b> 💰\n\n🦴 Earn Doggy by watching ads, completing tasks & referring friends.\n💵 100 Doggy = 0.01 USDT\n\n👇 Tap below to start earning!`;
-  const replyMarkup = {
+  const reply_markup = {
     inline_keyboard: [
-      [{ text: '💰 Earn Doggy', web_app: { url: MINI_APP_URL } }],
+      [{ text: '💰 Earn Doggy', url: MINI_APP_URL }],
       [{ text: '📢 Community', url: COMMUNITY_URL }],
     ],
   };
-  // Try sending photo first; fall back to text if photo fails
   const photoResp = await tg('sendPhoto', {
     chat_id: chatId,
     photo: START_PHOTO,
     caption,
     parse_mode: 'HTML',
-    reply_markup: JSON.stringify(replyMarkup),
+    reply_markup,
   }, lovableKey, tgKey);
   if (!photoResp?.ok) {
     await tg('sendMessage', {
       chat_id: chatId,
       text: caption,
       parse_mode: 'HTML',
-      reply_markup: JSON.stringify(replyMarkup),
+      reply_markup,
     }, lovableKey, tgKey);
   }
 }
