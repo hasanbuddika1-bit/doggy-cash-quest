@@ -1,0 +1,100 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
+const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
+const MAX_RUNTIME_MS = 55_000;
+const MIN_REMAINING_MS = 5_000;
+const MINI_APP_URL = 'https://doggy-cash-quest.lovable.app';
+const COMMUNITY_URL = 'https://t.me/doggycash12';
+const START_PHOTO = 'https://doggy-cash-quest.lovable.app/placeholder.svg';
+
+async function tg(method: string, body: any, lovableKey: string, tgKey: string) {
+  const res = await fetch(`${GATEWAY_URL}/${method}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableKey}`,
+      'X-Connection-Api-Key': tgKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function handleStart(chatId: number, firstName: string, lovableKey: string, tgKey: string) {
+  const caption = `🐶 <b>Welcome to Doggy Cash, ${firstName || 'Friend'}!</b> 💰\n\n🦴 Earn Doggy by watching ads, completing tasks & referring friends.\n💵 100 Doggy = 0.01 USDT\n\n👇 Tap below to start earning!`;
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '💰 Earn Doggy', web_app: { url: MINI_APP_URL } }],
+      [{ text: '📢 Community', url: COMMUNITY_URL }],
+    ],
+  };
+  // Try sending photo first; fall back to text if photo fails
+  const photoResp = await tg('sendPhoto', {
+    chat_id: chatId,
+    photo: START_PHOTO,
+    caption,
+    parse_mode: 'HTML',
+    reply_markup: JSON.stringify(replyMarkup),
+  }, lovableKey, tgKey);
+  if (!photoResp?.ok) {
+    await tg('sendMessage', {
+      chat_id: chatId,
+      text: caption,
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify(replyMarkup),
+    }, lovableKey, tgKey);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const startTime = Date.now();
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
+  const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY')!;
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+  const { data: state, error: stateErr } = await supabase
+    .from('telegram_bot_state').select('update_offset').eq('id', 1).single();
+  if (stateErr) return new Response(JSON.stringify({ error: stateErr.message }), { status: 500, headers: corsHeaders });
+  let currentOffset: number = state.update_offset;
+  let totalProcessed = 0;
+
+  while (true) {
+    const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
+    if (remaining < MIN_REMAINING_MS) break;
+    const timeout = Math.min(50, Math.floor(remaining / 1000) - 5);
+    if (timeout < 1) break;
+
+    const resp = await tg('getUpdates', {
+      offset: currentOffset,
+      timeout,
+      allowed_updates: ['message'],
+    }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+
+    const updates = resp?.result ?? [];
+    if (!updates.length) continue;
+
+    for (const u of updates) {
+      const msg = u.message;
+      if (!msg) continue;
+      const text = msg.text || '';
+      const chatId = msg.chat?.id;
+      const firstName = msg.from?.first_name || '';
+      if (text.startsWith('/start') && chatId) {
+        try { await handleStart(chatId, firstName, LOVABLE_API_KEY, TELEGRAM_API_KEY); }
+        catch (e) { console.error('handleStart error', e); }
+      }
+    }
+
+    totalProcessed += updates.length;
+    const newOffset = Math.max(...updates.map((u: any) => u.update_id)) + 1;
+    await supabase.from('telegram_bot_state')
+      .update({ update_offset: newOffset, updated_at: new Date().toISOString() }).eq('id', 1);
+    currentOffset = newOffset;
+  }
+
+  return new Response(JSON.stringify({ ok: true, processed: totalProcessed, offset: currentOffset }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+});
