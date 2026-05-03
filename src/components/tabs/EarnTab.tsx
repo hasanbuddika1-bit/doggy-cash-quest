@@ -103,17 +103,39 @@ function TasksSection({ userId }: { userId: string }) {
 
   useEffect(() => { loadTasks(); loadSubmissions(); }, [loadTasks, loadSubmissions]);
 
+  const [uploadingTask, setUploadingTask] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   async function handleImageUpload(taskId: string, file: File) {
     const ext = file.name.split('.').pop();
     const path = `${userId}/${taskId}.${ext}`;
+    setUploadingTask(taskId);
+    setUploadProgress(5);
+    // Simulate smooth progress while uploading
+    const interval = setInterval(() => {
+      setUploadProgress((p) => (p < 85 ? p + Math.random() * 8 : p));
+    }, 200);
     const { error } = await supabase.storage.from("task-images").upload(path, file, { upsert: true });
-    if (error) { toast.error("Upload failed"); return; }
+    clearInterval(interval);
+    if (error) {
+      setUploadingTask(null);
+      setUploadProgress(0);
+      toast.error("Upload failed");
+      return;
+    }
+    setUploadProgress(95);
     const { data: urlData } = supabase.storage.from("task-images").getPublicUrl(path);
     try {
       await submitTask(userId, taskId, urlData.publicUrl);
+      setUploadProgress(100);
+      setTimeout(() => { setUploadingTask(null); setUploadProgress(0); }, 600);
       toast.success("📤 Task submitted! Waiting for review.");
       loadSubmissions();
-    } catch { toast.error("Submit failed"); }
+    } catch {
+      setUploadingTask(null);
+      setUploadProgress(0);
+      toast.error("Submit failed");
+    }
   }
 
   return (
