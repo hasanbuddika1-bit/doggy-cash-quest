@@ -303,17 +303,27 @@ Deno.serve(async (req) => {
 
       // Post to public payment channel with Open Mini App button
       try {
-        const netAmount = Number(w.net_usdt || w.usdt_amount);
+        const netAmount2 = Number(w.net_usdt || w.usdt_amount);
         const uname = (w.users as any)?.username ? `@${(w.users as any).username}` : 'a user';
-        await sendTelegram('sendMessage', {
+        const channelResp = await sendTelegram('sendMessage', {
           chat_id: '@bluetonpayment',
-          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Paid: <b>$${netAmount.toFixed(4)} USDT</b>\n\n🐶 Earn yours on Doggy Cash!`,
+          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Paid: <b>$${netAmount2.toFixed(4)} USDT</b>\n\n🐶 Earn yours on Doggy Cash!`,
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({
             inline_keyboard: [[{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }]],
           }),
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
-      } catch { /* channel post optional */ }
+        console.log('Payment channel post result:', JSON.stringify(channelResp));
+        if (!channelResp?.ok) {
+          await notifyAdmin(
+            `⚠️ <b>Payment channel post FAILED</b>\n\n${JSON.stringify(channelResp).slice(0, 500)}\n\nMake sure @Goggycashbot is admin in @bluetonpayment with post permission.`,
+            LOVABLE_API_KEY, TELEGRAM_API_KEY
+          );
+        }
+      } catch (e) {
+        console.error('Payment channel post error:', e);
+        await notifyAdmin(`⚠️ Payment channel error: ${String(e).slice(0, 300)}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      }
 
       await notifyAdmin(
         `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nNet USDT: $${Number(w.net_usdt || w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>`,
