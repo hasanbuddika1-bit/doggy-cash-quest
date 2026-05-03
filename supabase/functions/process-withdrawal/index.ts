@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: ADMIN_CHAT_ID,
-        text: `📤 <b>New Withdrawal Request</b>\n\nUser: @${user.username || 'unknown'}\nAmount: ${amount} Doggy\nGross: $${grossUsdt.toFixed(4)} USDT\nFee: $${fee.toFixed(4)}\nNet: $${netUsdt.toFixed(4)} USDT\nWallet: <code>${wallet_address}</code>`,
+        text: `📤💰 <b>New Withdrawal Request!</b> 🐶\n\n👤 User: @${user.username || 'unknown'}\n🦴 Amount: <b>${amount} Doggy</b>\n💵 Gross: $${grossUsdt.toFixed(4)} USDT\n💸 Fee: $${fee.toFixed(4)}\n✅ Net: <b>$${netUsdt.toFixed(4)} USDT</b>\n📤 Wallet: <code>${wallet_address}</code>`,
         parse_mode: 'HTML',
       }),
     });
@@ -133,7 +133,11 @@ Deno.serve(async (req) => {
       headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: user.telegram_id,
-        text: `📤 Withdrawal request submitted!\n\nAmount: ${amount} Doggy\nFee: $${fee.toFixed(4)}\nYou'll receive: $${netUsdt.toFixed(4)} USDT\n\nPlease wait for approval.`,
+        text: `📤✨ <b>Withdrawal Submitted!</b> 🐶\n\n🦴 Amount: <b>${amount} Doggy</b>\n💸 Fee: $${fee.toFixed(4)}\n💵 You'll receive: <b>$${netUsdt.toFixed(4)} USDT</b>\n\n⏳ Please wait for admin approval.`,
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [[{ text: '🐶 Open Mini App', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }]],
+        }),
       }),
     });
 
