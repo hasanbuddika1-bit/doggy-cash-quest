@@ -210,6 +210,8 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
         <p className="text-xs text-primary font-bold">{Number(user.balance).toFixed(0)} 🦴 | Country: {user.country || 'Unknown'}</p>
+        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
+        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
       </div>
 
