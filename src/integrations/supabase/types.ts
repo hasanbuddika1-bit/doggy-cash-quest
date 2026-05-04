@@ -443,6 +443,7 @@ export type Database = {
           suspended_at: string | null
           suspension_reason: string | null
           telegram_id: number
+          ton_address: string | null
           updated_at: string
           username: string | null
           wallet_address: string | null
@@ -462,6 +463,7 @@ export type Database = {
           suspended_at?: string | null
           suspension_reason?: string | null
           telegram_id: number
+          ton_address?: string | null
           updated_at?: string
           username?: string | null
           wallet_address?: string | null
@@ -481,6 +483,7 @@ export type Database = {
           suspended_at?: string | null
           suspension_reason?: string | null
           telegram_id?: number
+          ton_address?: string | null
           updated_at?: string
           username?: string | null
           wallet_address?: string | null
@@ -503,8 +506,11 @@ export type Database = {
           created_at: string
           fee_usdt: number
           id: string
+          method: string
           net_usdt: number
           status: Database["public"]["Enums"]["withdraw_status"]
+          ton_amount: number | null
+          tx_hash: string | null
           updated_at: string
           usdt_amount: number
           user_id: string
@@ -516,8 +522,11 @@ export type Database = {
           created_at?: string
           fee_usdt?: number
           id?: string
+          method?: string
           net_usdt?: number
           status?: Database["public"]["Enums"]["withdraw_status"]
+          ton_amount?: number | null
+          tx_hash?: string | null
           updated_at?: string
           usdt_amount: number
           user_id: string
@@ -529,8 +538,11 @@ export type Database = {
           created_at?: string
           fee_usdt?: number
           id?: string
+          method?: string
           net_usdt?: number
           status?: Database["public"]["Enums"]["withdraw_status"]
+          ton_amount?: number | null
+          tx_hash?: string | null
           updated_at?: string
           usdt_amount?: number
           user_id?: string
