@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get_or_create_user') {
-      const { telegram_id, username, first_name, photo_url, referrer_id } = body;
+      const { telegram_id, username, first_name, photo_url, referrer_id, country } = body;
       
       let { data: user } = await supabase.from('users').select('*').eq('telegram_id', telegram_id).single();
       
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
         }
 
         const insertData: any = { telegram_id, username, first_name, photo_url, ip_address: clientIp };
+        if (country) insertData.country = country;
         if (referrer_id && !sameIpReferralBlock) insertData.referrer_id = referrer_id;
         
         const { data: newUser, error } = await supabase.from('users').insert(insertData).select().single();
@@ -127,8 +128,11 @@ Deno.serve(async (req) => {
           LOVABLE_API_KEY, TELEGRAM_API_KEY
         );
       } else {
-        // Update existing user IP
-        await supabase.from('users').update({ username, first_name, photo_url, ip_address: clientIp }).eq('id', user.id);
+        // Update existing user IP and country if missing
+        const upd: any = { username, first_name, photo_url, ip_address: clientIp };
+        if (country && !user.country) upd.country = country;
+        await supabase.from('users').update(upd).eq('id', user.id);
+        if (country && !user.country) user.country = country;
       }
 
       return new Response(JSON.stringify({ user }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -279,21 +283,36 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'admin_approve_withdrawal') {
-      const { withdrawal_id } = body;
+      const { withdrawal_id, tx_hash } = body;
       const { data: w } = await supabase.from('withdrawals').select('*, users(telegram_id, balance, username)').eq('id', withdrawal_id).single();
       if (!w) throw new Error('Not found');
 
-      await supabase.from('withdrawals').update({ status: 'approved' }).eq('id', withdrawal_id);
+      const isTon = w.method === 'ton';
+      if (!tx_hash || !String(tx_hash).trim()) {
+        return new Response(JSON.stringify({ success: false, message: 'Transaction hash / ID required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      await supabase.from('withdrawals').update({ status: 'approved', tx_hash: String(tx_hash).trim() }).eq('id', withdrawal_id);
       await supabase.from('users').update({ balance: Number((w.users as any)?.balance || 0) - Number(w.amount) }).eq('id', w.user_id);
 
+      const netUsdt = Number(w.net_usdt || w.usdt_amount);
+      const tonAmt = Number(w.ton_amount || 0);
+      const txExplorer = isTon
+        ? `https://tonviewer.com/transaction/${encodeURIComponent(String(tx_hash).trim())}`
+        : `https://explorer.aptoslabs.com/txn/${encodeURIComponent(String(tx_hash).trim())}?network=mainnet`;
+      const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
+      const paidLine = isTon
+        ? `🪙 Paid: <b>${tonAmt} TON</b> (~$${netUsdt.toFixed(4)})`
+        : `💵 Paid: <b>$${netUsdt.toFixed(4)} USDT</b>`;
+
       if ((w.users as any)?.telegram_id) {
-        const netAmount = Number(w.net_usdt || w.usdt_amount);
         await sendTelegram('sendMessage', {
           chat_id: (w.users as any).telegram_id,
-          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Net: <b>$${netAmount.toFixed(4)} USDT</b>\n📤 Wallet: <code>${w.wallet_address}</code>\n\nThanks for using Doggy Cash! 🐶`,
+          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n📤 Wallet: <code>${w.wallet_address}</code>\n🔗 TX: <code>${tx_hash}</code>\n\nThanks for using Doggy Cash! 🐶`,
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({
             inline_keyboard: [
+              [{ text: '🔍 View Transaction', url: txExplorer }],
               [{ text: '💳 Payment Channel', url: 'https://t.me/bluetonpayment' }],
               [{ text: '🐶 Open Mini App', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }],
             ],
@@ -301,32 +320,29 @@ Deno.serve(async (req) => {
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
-      // Post to public payment channel with Open Mini App button
+      // Public payment channel post with tx link
       try {
-        const netAmount2 = Number(w.net_usdt || w.usdt_amount);
         const uname = (w.users as any)?.username ? `@${(w.users as any).username}` : 'a user';
         const channelResp = await sendTelegram('sendMessage', {
           chat_id: '@bluetonpayment',
-          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n🦴 Amount: <b>${w.amount} Doggy</b>\n💵 Paid: <b>$${netAmount2.toFixed(4)} USDT</b>\n\n🐶 Earn yours on Doggy Cash!`,
+          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n🔗 TX: <code>${tx_hash}</code>\n\n🐶 Earn yours on Doggy Cash!`,
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({
-            inline_keyboard: [[{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }]],
+            inline_keyboard: [
+              [{ text: '🔍 View Transaction', url: txExplorer }],
+              [{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }],
+            ],
           }),
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
-        console.log('Payment channel post result:', JSON.stringify(channelResp));
         if (!channelResp?.ok) {
-          await notifyAdmin(
-            `⚠️ <b>Payment channel post FAILED</b>\n\n${JSON.stringify(channelResp).slice(0, 500)}\n\nMake sure @Goggycashbot is admin in @bluetonpayment with post permission.`,
-            LOVABLE_API_KEY, TELEGRAM_API_KEY
-          );
+          await notifyAdmin(`⚠️ Payment channel post FAILED\n${JSON.stringify(channelResp).slice(0, 500)}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         }
       } catch (e) {
-        console.error('Payment channel post error:', e);
         await notifyAdmin(`⚠️ Payment channel error: ${String(e).slice(0, 300)}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
       await notifyAdmin(
-        `💸 <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nAmount: ${w.amount} Doggy\nNet USDT: $${Number(w.net_usdt || w.usdt_amount).toFixed(4)}\nWallet: <code>${w.wallet_address}</code>`,
+        `💸✅ <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nMethod: ${methodLabel}\nAmount: ${w.amount} Doggy\n${paidLine}\nTX: <code>${tx_hash}</code>`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
@@ -439,8 +455,15 @@ Deno.serve(async (req) => {
 
     // Update wallet address
     if (action === 'update_wallet') {
-      const { user_id, wallet_address } = body;
-      await supabase.from('users').update({ wallet_address }).eq('id', user_id);
+      const { user_id, wallet_address, ton_address, method } = body;
+      const update: any = {};
+      if (method === 'ton' || ton_address !== undefined) {
+        if (ton_address !== undefined) update.ton_address = ton_address;
+        else update.ton_address = wallet_address;
+      } else {
+        update.wallet_address = wallet_address;
+      }
+      await supabase.from('users').update(update).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 

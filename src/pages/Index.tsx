@@ -89,7 +89,8 @@ const Index = () => {
         telegramUser.username,
         telegramUser.first_name,
         telegramUser.photo_url,
-        referrerId
+        referrerId,
+        detectedCountry || undefined
       );
 
       setProgress(70);

@@ -210,6 +210,8 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
         <p className="text-xs text-primary font-bold">{Number(user.balance).toFixed(0)} 🦴 | Country: {user.country || 'Unknown'}</p>
+        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
+        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
       </div>
 
@@ -436,56 +438,126 @@ function SubmissionsTab() {
 
 function WithdrawalsTab() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [filter, setFilter] = useState<'all' | 'usdt_aptos' | 'ton'>('all');
   const [loading, setLoading] = useState<string | null>(null);
+  const [txInputs, setTxInputs] = useState<Record<string, string>>({});
+  const [activity, setActivity] = useState<Record<string, any>>({});
 
   useEffect(() => { loadWithdrawals(); }, []);
 
   async function loadWithdrawals() {
     const { data } = await supabase.from("withdrawals").select("*, users(username, telegram_id, balance)")
-      .order("created_at", { ascending: false }).limit(50);
-    setWithdrawals(data || []);
+      .order("created_at", { ascending: false }).limit(100);
+    const list = data || [];
+    setWithdrawals(list);
+
+    // Load activity counts to validate balance plausibility
+    const userIds = [...new Set(list.map((w: any) => w.user_id))];
+    if (userIds.length) {
+      const [ads, clicks, refs, codes] = await Promise.all([
+        supabase.from("ad_watches").select("user_id, earned").in("user_id", userIds),
+        supabase.from("clicks").select("user_id, earned").in("user_id", userIds),
+        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned").in("referrer_id", userIds).eq("verified", true),
+        supabase.from("reward_claims").select("user_id, amount").in("user_id", userIds),
+      ]);
+      const map: Record<string, any> = {};
+      userIds.forEach((id) => { map[id] = { ads: 0, clicks: 0, refs: 0, codes: 0, earned: 0 }; });
+      (ads.data || []).forEach((r: any) => { map[r.user_id].ads++; map[r.user_id].earned += Number(r.earned || 0); });
+      (clicks.data || []).forEach((r: any) => { map[r.user_id].clicks++; map[r.user_id].earned += Number(r.earned || 0); });
+      (refs.data || []).forEach((r: any) => { map[r.referrer_id].refs++; map[r.referrer_id].earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0); });
+      (codes.data || []).forEach((r: any) => { map[r.user_id].codes++; map[r.user_id].earned += Number(r.amount || 0); });
+      setActivity(map);
+    }
   }
 
-  async function handleAction(id: string, action: string) {
-    setLoading(id);
+  async function handleApprove(w: any) {
+    const txHash = (txInputs[w.id] || '').trim();
+    if (!txHash) { toast.error("Enter Transaction Hash / ID first"); return; }
+    setLoading(w.id);
     try {
-      await adminAction(action, { withdrawal_id: id });
-      toast.success(action === 'approve_withdrawal' ? '✅ Approved!' : '❌ Rejected!');
+      await adminAction("approve_withdrawal", { withdrawal_id: w.id, tx_hash: txHash });
+      toast.success('✅ Approved & broadcasted!');
       loadWithdrawals();
     } catch { toast.error("Action failed"); }
     setLoading(null);
   }
 
+  async function handleReject(id: string) {
+    setLoading(id);
+    try {
+      await adminAction("reject_withdrawal", { withdrawal_id: id });
+      toast.success('❌ Rejected');
+      loadWithdrawals();
+    } catch { toast.error("Action failed"); }
+    setLoading(null);
+  }
+
+  const filtered = withdrawals.filter(w => filter === 'all' ? true : w.method === filter);
+
   return (
-    <div className="space-y-2 mt-3 max-h-[70vh] overflow-y-auto">
-      {withdrawals.map((w) => (
-        <div key={w.id} className="bg-card rounded-lg p-3 border border-border">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-xs font-semibold">@{(w.users as any)?.username}</p>
-              <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🦴</p>
-              <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}</p>
-              <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
-              <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
+    <div className="space-y-2 mt-3">
+      <div className="flex gap-1.5">
+        {([['all','All'],['usdt_aptos','🟢 USDT'],['ton','🔵 TON']] as const).map(([k, l]) => (
+          <Button key={k} size="sm" variant={filter === k ? 'default' : 'outline'}
+            className="h-7 text-[10px] flex-1" onClick={() => setFilter(k as any)}>{l}</Button>
+        ))}
+      </div>
+      <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+      {filtered.map((w) => {
+        const isTon = w.method === 'ton';
+        const u = w.users as any;
+        const act = activity[w.user_id] || { ads: 0, clicks: 0, refs: 0, codes: 0, earned: 0 };
+        const userBalance = Number(u?.balance || 0);
+        // simple plausibility: balance shouldn't exceed earned + (current balance refers to remaining); flag if balance > earned * 1.1
+        const suspicious = userBalance > act.earned * 1.5 && act.earned > 0;
+        return (
+          <div key={w.id} className={`bg-card rounded-lg p-3 border ${suspicious ? 'border-destructive/60' : 'border-border'}`}>
+            <div className="flex justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold flex items-center gap-1">
+                  {isTon ? '🔵 TON' : '🟢 USDT (Aptos)'} • @{u?.username}
+                </p>
+                <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}
+                </p>
+                {isTon && w.ton_amount && (
+                  <p className="text-[10px] text-blue-400 font-bold">🪙 Pay: {Number(w.ton_amount).toFixed(6)} TON</p>
+                )}
+                <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
+                <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
+                <p className={`text-[10px] mt-1 ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+                  Balance: {userBalance.toFixed(0)} 🦴 | Earned: {act.earned.toFixed(0)} 🦴 | Ads {act.ads} • Clicks {act.clicks} • Refs {act.refs} • Codes {act.codes}
+                  {suspicious && ' ⚠️ Inconsistent'}
+                </p>
+                {w.tx_hash && <p className="text-[10px] text-blue-400 break-all">TX: {w.tx_hash}</p>}
+              </div>
             </div>
+            <p className={`text-xs font-bold mt-1 ${w.status === 'approved' ? 'text-green-400' : w.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'}`}>
+              {w.status.toUpperCase()}
+            </p>
+            {w.status === 'pending' && (
+              <div className="mt-2 space-y-2">
+                <Input
+                  value={txInputs[w.id] || ''}
+                  onChange={(e) => setTxInputs(prev => ({ ...prev, [w.id]: e.target.value }))}
+                  placeholder={isTon ? 'TON tx hash (paste after sending)' : 'Aptos tx hash'}
+                  className="h-7 text-[10px] font-mono"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-6 text-[10px] bg-green-600 flex-1" onClick={() => handleApprove(w)} disabled={loading === w.id}>
+                    {loading === w.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />} Approve & Notify
+                  </Button>
+                  <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleReject(w.id)} disabled={loading === w.id}>
+                    <X className="w-3 h-3 mr-1" /> Reject
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-          <p className={`text-xs font-bold mt-1 ${w.status === 'approved' ? 'text-green-400' : w.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'}`}>
-            {w.status.toUpperCase()}
-          </p>
-          {w.status === 'pending' && (
-            <div className="flex gap-2 mt-2">
-              <Button size="sm" className="h-6 text-[10px] bg-green-600" onClick={() => handleAction(w.id, 'approve_withdrawal')}
-                disabled={loading === w.id}>
-                {loading === w.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />} Approve
-              </Button>
-              <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleAction(w.id, 'reject_withdrawal')}
-                disabled={loading === w.id}>
-                <X className="w-3 h-3 mr-1" /> Reject
-              </Button>
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
+      </div>
     </div>
   );
 }

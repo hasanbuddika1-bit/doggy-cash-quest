@@ -21,7 +21,7 @@ async function callEdgeFunction(name: string, body?: any) {
 }
 
 // User operations
-export async function getOrCreateUser(telegramId: number, username?: string, firstName?: string, photoUrl?: string, referrerId?: string) {
+export async function getOrCreateUser(telegramId: number, username?: string, firstName?: string, photoUrl?: string, referrerId?: string, country?: string) {
   return callEdgeFunction("telegram-bot", {
     action: "get_or_create_user",
     telegram_id: telegramId,
@@ -29,6 +29,7 @@ export async function getOrCreateUser(telegramId: number, username?: string, fir
     first_name: firstName,
     photo_url: photoUrl,
     referrer_id: referrerId,
+    country,
   });
 }
 
@@ -68,12 +69,20 @@ export async function claimReferralReward(userId: string, referralId: string) {
   });
 }
 
-export async function submitWithdrawal(userId: string, amount: number, walletAddress: string) {
+export async function submitWithdrawal(userId: string, amount: number, walletAddress: string, method: 'usdt_aptos' | 'ton' = 'usdt_aptos') {
   return callEdgeFunction("process-withdrawal", {
     user_id: userId,
     amount,
     wallet_address: walletAddress,
+    method,
   });
+}
+
+export async function getTonPrice(): Promise<number> {
+  try {
+    const res = await callEdgeFunction("ton-price");
+    return Number(res.ton_usdt) || 0;
+  } catch { return 0; }
 }
 
 export async function submitTask(userId: string, taskId: string, imageUrl: string) {
@@ -95,8 +104,8 @@ export async function processAdReward(userId: string, adIndex: number, earned: n
 }
 
 // Wallet
-export async function updateWallet(userId: string, walletAddress: string) {
-  return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress });
+export async function updateWallet(userId: string, walletAddress: string, method: 'usdt_aptos' | 'ton' = 'usdt_aptos') {
+  return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress, method });
 }
 
 // Telegram task
