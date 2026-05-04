@@ -21,7 +21,7 @@ async function callEdgeFunction(name: string, body?: any) {
 }
 
 // User operations
-export async function getOrCreateUser(telegramId: number, username?: string, firstName?: string, photoUrl?: string, referrerId?: string) {
+export async function getOrCreateUser(telegramId: number, username?: string, firstName?: string, photoUrl?: string, referrerId?: string, country?: string) {
   return callEdgeFunction("telegram-bot", {
     action: "get_or_create_user",
     telegram_id: telegramId,
@@ -29,6 +29,7 @@ export async function getOrCreateUser(telegramId: number, username?: string, fir
     first_name: firstName,
     photo_url: photoUrl,
     referrer_id: referrerId,
+    country,
   });
 }
 

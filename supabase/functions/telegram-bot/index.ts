@@ -128,8 +128,11 @@ Deno.serve(async (req) => {
           LOVABLE_API_KEY, TELEGRAM_API_KEY
         );
       } else {
-        // Update existing user IP
-        await supabase.from('users').update({ username, first_name, photo_url, ip_address: clientIp }).eq('id', user.id);
+        // Update existing user IP and country if missing
+        const upd: any = { username, first_name, photo_url, ip_address: clientIp };
+        if (country && !user.country) upd.country = country;
+        await supabase.from('users').update(upd).eq('id', user.id);
+        if (country && !user.country) user.country = country;
       }
 
       return new Response(JSON.stringify({ user }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
