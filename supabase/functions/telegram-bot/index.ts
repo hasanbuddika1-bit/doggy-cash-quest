@@ -439,8 +439,15 @@ Deno.serve(async (req) => {
 
     // Update wallet address
     if (action === 'update_wallet') {
-      const { user_id, wallet_address } = body;
-      await supabase.from('users').update({ wallet_address }).eq('id', user_id);
+      const { user_id, wallet_address, ton_address, method } = body;
+      const update: any = {};
+      if (method === 'ton' || ton_address !== undefined) {
+        if (ton_address !== undefined) update.ton_address = ton_address;
+        else update.ton_address = wallet_address;
+      } else {
+        update.wallet_address = wallet_address;
+      }
+      await supabase.from('users').update(update).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
