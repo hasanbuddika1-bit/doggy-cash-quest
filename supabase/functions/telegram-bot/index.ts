@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get_or_create_user') {
-      const { telegram_id, username, first_name, photo_url, referrer_id } = body;
+      const { telegram_id, username, first_name, photo_url, referrer_id, country } = body;
       
       let { data: user } = await supabase.from('users').select('*').eq('telegram_id', telegram_id).single();
       
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
         }
 
         const insertData: any = { telegram_id, username, first_name, photo_url, ip_address: clientIp };
+        if (country) insertData.country = country;
         if (referrer_id && !sameIpReferralBlock) insertData.referrer_id = referrer_id;
         
         const { data: newUser, error } = await supabase.from('users').insert(insertData).select().single();
