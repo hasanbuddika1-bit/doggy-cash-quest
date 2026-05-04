@@ -344,6 +344,8 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    if (action === 'admin_reject_withdrawal') {
       const { withdrawal_id } = body;
       const { data: w } = await supabase.from('withdrawals').select('*, users(telegram_id)').eq('id', withdrawal_id).single();
       await supabase.from('withdrawals').update({ status: 'rejected' }).eq('id', withdrawal_id);
