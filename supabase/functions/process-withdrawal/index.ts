@@ -60,24 +60,27 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: false, message: 'You have a pending withdrawal' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
+    // Admins can fill all requirements for a user via withdraw_unlocked flag
+    if (!user.withdraw_unlocked) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
 
-    const { count: dailyAds } = await supabase.from('ad_watches').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
-    if ((dailyAds || 0) < withdrawAdsReq) return new Response(JSON.stringify({ success: false, message: `Watch at least ${withdrawAdsReq} ads before withdrawing` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    if ((dailyAds || 0) < dailyAdsReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyAdsReq} daily ads watched` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { count: dailyAds } = await supabase.from('ad_watches').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
+      if ((dailyAds || 0) < withdrawAdsReq) return new Response(JSON.stringify({ success: false, message: `Watch at least ${withdrawAdsReq} ads before withdrawing` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if ((dailyAds || 0) < dailyAdsReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyAdsReq} daily ads watched` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    const { count: dailyClicks } = await supabase.from('clicks').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
-    if ((dailyClicks || 0) < dailyClicksReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyClicksReq} daily clicks` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { count: dailyClicks } = await supabase.from('clicks').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
+      if ((dailyClicks || 0) < dailyClicksReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyClicksReq} daily clicks` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).eq('verified', true);
-    if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} verified referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).eq('verified', true);
+      if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} verified referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    const { data: telegramTasks } = await supabase.from('tasks').select('id').eq('active', true).eq('task_type', 'one_click');
-    const tIds = (telegramTasks || []).map((t: any) => t.id);
-    if (tIds.length > 0) {
-      const { count: done } = await supabase.from('task_submissions').select('*', { count: 'exact', head: true }).eq('user_id', user_id).in('task_id', tIds).eq('status', 'approved');
-      if ((done || 0) < tIds.length) return new Response(JSON.stringify({ success: false, message: 'Complete all Telegram tasks before withdrawing' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: telegramTasks } = await supabase.from('tasks').select('id').eq('active', true).eq('task_type', 'one_click');
+      const tIds = (telegramTasks || []).map((t: any) => t.id);
+      if (tIds.length > 0) {
+        const { count: done } = await supabase.from('task_submissions').select('*', { count: 'exact', head: true }).eq('user_id', user_id).in('task_id', tIds).eq('status', 'approved');
+        if ((done || 0) < tIds.length) return new Response(JSON.stringify({ success: false, message: 'Complete all Telegram tasks before withdrawing' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     const fee = feeFixed + (grossUsdt * feePercent / 100);

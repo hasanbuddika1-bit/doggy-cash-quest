@@ -108,6 +108,11 @@ export async function updateWallet(userId: string, walletAddress: string, method
   return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress, method });
 }
 
+// Weekly challenge
+export async function claimWeeklyChallenge(userId: string, challengeKey: 'refer' | 'watch_ads', tier: number) {
+  return callEdgeFunction("telegram-bot", { action: "claim_weekly_challenge", user_id: userId, challenge_key: challengeKey, tier });
+}
+
 // Telegram task
 export async function processTelegramTask(userId: string, taskId: string, taskValue: number) {
   return callEdgeFunction("telegram-bot", { action: "process_telegram_task", user_id: userId, task_id: taskId, task_value: taskValue });

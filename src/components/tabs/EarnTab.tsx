@@ -9,6 +9,7 @@ import { showMonetagAd } from "@/lib/monetag";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
+import { ChallengesSection } from "@/components/tabs/ChallengesSection";
 
 interface EarnTabProps {
   userId: string;
@@ -16,6 +17,7 @@ interface EarnTabProps {
 }
 
 const SUB_TABS = [
+  { key: "Challenges", icon: "🏆", color: "from-yellow-500 to-amber-600" },
   { key: "Admin Tasks", icon: "📋", color: "from-amber-500 to-orange-600" },
   { key: "Telegram Tasks", icon: "📢", color: "from-blue-500 to-cyan-600" },
   { key: "Clicks", icon: "👆", color: "from-green-500 to-emerald-600" },
@@ -29,7 +31,7 @@ const CLICK_LINKS = [
 ];
 
 export function EarnTab({ userId, telegramId }: EarnTabProps) {
-  const [subTab, setSubTab] = useState("Admin Tasks");
+  const [subTab, setSubTab] = useState("Challenges");
 
   return (
     <div className="px-4 pt-4 pb-24">
@@ -69,6 +71,7 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
 
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+          {subTab === "Challenges" && <ChallengesSection userId={userId} />}
           {subTab === "Admin Tasks" && <TasksSection userId={userId} />}
           {subTab === "Telegram Tasks" && <TelegramTasksSection userId={userId} telegramId={telegramId} />}
           {subTab === "Clicks" && <ClicksSection userId={userId} />}

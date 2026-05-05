@@ -448,6 +448,7 @@ export type Database = {
           username: string | null
           wallet_address: string | null
           welcome_bonus_claimed: boolean
+          withdraw_unlocked: boolean
         }
         Insert: {
           access_tasks_completed?: boolean
@@ -468,6 +469,7 @@ export type Database = {
           username?: string | null
           wallet_address?: string | null
           welcome_bonus_claimed?: boolean
+          withdraw_unlocked?: boolean
         }
         Update: {
           access_tasks_completed?: boolean
@@ -488,6 +490,7 @@ export type Database = {
           username?: string | null
           wallet_address?: string | null
           welcome_bonus_claimed?: boolean
+          withdraw_unlocked?: boolean
         }
         Relationships: [
           {
@@ -498,6 +501,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      weekly_challenge_claims: {
+        Row: {
+          amount: number
+          challenge_key: string
+          created_at: string
+          id: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          amount?: number
+          challenge_key: string
+          created_at?: string
+          id?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          amount?: number
+          challenge_key?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
       }
       withdrawals: {
         Row: {

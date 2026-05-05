@@ -12,14 +12,23 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ user, userId }: ProfileTabProps) {
-  const [wallet, setWallet] = useState(user?.wallet_address || "");
-  const [editing, setEditing] = useState(false);
+  const [aptosWallet, setAptosWallet] = useState(user?.wallet_address || "");
+  const [tonWallet, setTonWallet] = useState(user?.ton_address || "");
+  const [editingAptos, setEditingAptos] = useState(false);
+  const [editingTon, setEditingTon] = useState(false);
   const balance = Number(user?.balance || 0);
 
-  async function saveWallet() {
-    await updateWallet(userId, wallet);
-    toast.success("✅ Wallet updated!");
-    setEditing(false);
+  async function saveAptos() {
+    if (!aptosWallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, aptosWallet, 'usdt_aptos');
+    toast.success("✅ USDT (Aptos) wallet saved!");
+    setEditingAptos(false);
+  }
+  async function saveTon() {
+    if (!tonWallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, tonWallet, 'ton');
+    toast.success("✅ TON wallet saved!");
+    setEditingTon(false);
   }
 
   const countryDisplay = user?.country && user.country !== 'UNKNOWN' 
@@ -86,25 +95,47 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
         </div>
       </motion.div>
 
-      {/* Wallet */}
+      {/* USDT Aptos Wallet */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-        className="bg-card rounded-xl p-4 border border-border"
+        className="bg-gradient-to-br from-emerald-500/10 to-card rounded-xl p-4 border border-emerald-500/30"
       >
         <div className="flex justify-between items-center mb-2">
           <p className="text-sm font-bold flex items-center gap-1.5">
-            <Wallet className="w-4 h-4 text-amber-400" /> Wallet Address
+            <Wallet className="w-4 h-4 text-emerald-400" /> 🟢 USDT (Aptos) Address
           </p>
-          <button onClick={() => setEditing(!editing)} className="p-1 hover:bg-muted rounded">
+          <button onClick={() => setEditingAptos(!editingAptos)} className="p-1 hover:bg-muted rounded">
             <Edit className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
-        {editing ? (
+        {editingAptos ? (
           <div className="flex gap-2">
-            <Input value={wallet} onChange={(e) => setWallet(e.target.value)} className="h-9 text-xs" placeholder="USDT APTOS address" />
-            <Button size="sm" className="h-9 bg-gradient-gold text-primary-foreground" onClick={saveWallet}><Save className="w-3 h-3" /></Button>
+            <Input value={aptosWallet} onChange={(e) => setAptosWallet(e.target.value)} className="h-9 text-xs" placeholder="Aptos address (0x...)" />
+            <Button size="sm" className="h-9 bg-gradient-to-r from-emerald-500 to-green-600 text-white" onClick={saveAptos}><Save className="w-3 h-3" /></Button>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground font-mono break-all">{wallet || 'Not set'}</p>
+          <p className="text-xs text-muted-foreground font-mono break-all">{aptosWallet || 'Not set'}</p>
+        )}
+      </motion.div>
+
+      {/* TON Wallet */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+        className="bg-gradient-to-br from-blue-500/10 to-card rounded-xl p-4 border border-blue-500/30"
+      >
+        <div className="flex justify-between items-center mb-2">
+          <p className="text-sm font-bold flex items-center gap-1.5">
+            <Wallet className="w-4 h-4 text-blue-400" /> 🔵 TON Address
+          </p>
+          <button onClick={() => setEditingTon(!editingTon)} className="p-1 hover:bg-muted rounded">
+            <Edit className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+        {editingTon ? (
+          <div className="flex gap-2">
+            <Input value={tonWallet} onChange={(e) => setTonWallet(e.target.value)} className="h-9 text-xs" placeholder="TON address (EQ.../UQ...)" />
+            <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-cyan-600 text-white" onClick={saveTon}><Save className="w-3 h-3" /></Button>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground font-mono break-all">{tonWallet || 'Not set'}</p>
         )}
       </motion.div>
 
