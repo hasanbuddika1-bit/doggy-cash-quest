@@ -467,6 +467,71 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Admin: toggle/fill withdraw requirements unlock for a user
+    if (action === 'admin_unlock_withdraw') {
+      const { target_user_id, unlocked } = body;
+      const { data: u } = await supabase.from('users').select('telegram_id, withdraw_unlocked').eq('id', target_user_id).single();
+      const newVal = typeof unlocked === 'boolean' ? unlocked : !u?.withdraw_unlocked;
+      await supabase.from('users').update({ withdraw_unlocked: newVal }).eq('id', target_user_id);
+      if (newVal && u?.telegram_id) {
+        await sendTelegram('sendMessage', {
+          chat_id: u.telegram_id,
+          text: `🎉 <b>Withdraw Unlocked!</b>\n\nAn admin has filled all withdraw requirements for you. You can now request a withdrawal directly! 💸`,
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({ inline_keyboard: [[{ text: '💸 Withdraw Now', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }]] }),
+        }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      }
+      return new Response(JSON.stringify({ success: true, unlocked: newVal }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Weekly challenge claim (refer / watch_ads tiers, resets every Sunday)
+    if (action === 'claim_weekly_challenge') {
+      const { user_id, challenge_key, tier } = body;
+      // Compute week_start = most recent Sunday 00:00 UTC
+      const now = new Date();
+      const day = now.getUTCDay(); // 0=Sun
+      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day, 0, 0, 0));
+
+      const REFER_TIERS: Record<string, number> = { '5': 50, '10': 150, '50': 500, '100': 1000 };
+      const ADS_TIERS: Record<string, number> = { '10': 5, '50': 75, '100': 200, '500': 300, '1000': 500 };
+      const tiers = challenge_key === 'refer' ? REFER_TIERS : challenge_key === 'watch_ads' ? ADS_TIERS : null;
+      if (!tiers || !(String(tier) in tiers)) {
+        return new Response(JSON.stringify({ success: false, message: 'Invalid challenge' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const required = Number(tier);
+      const reward = tiers[String(tier)];
+
+      // Verify progress this week
+      let progress = 0;
+      if (challenge_key === 'refer') {
+        const { count } = await supabase.from('referrals').select('id', { count: 'exact', head: true })
+          .eq('referrer_id', user_id).eq('verified', true).gte('created_at', weekStart.toISOString());
+        progress = count || 0;
+      } else {
+        const { count } = await supabase.from('ad_watches').select('id', { count: 'exact', head: true })
+          .eq('user_id', user_id).gte('created_at', weekStart.toISOString());
+        progress = count || 0;
+      }
+      if (progress < required) {
+        return new Response(JSON.stringify({ success: false, message: `Need ${required}, have ${progress}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const claimKey = `${challenge_key}_${tier}`;
+      const { data: existing } = await supabase.from('weekly_challenge_claims').select('id')
+        .eq('user_id', user_id).eq('challenge_key', claimKey).eq('week_start', weekStart.toISOString()).maybeSingle();
+      if (existing) {
+        return new Response(JSON.stringify({ success: false, message: 'Already claimed this week' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      await supabase.from('weekly_challenge_claims').insert({
+        user_id, challenge_key: claimKey, week_start: weekStart.toISOString(), amount: reward,
+      });
+      const { data: u } = await supabase.from('users').select('balance').eq('id', user_id).single();
+      await supabase.from('users').update({ balance: Number(u?.balance || 0) + reward }).eq('id', user_id);
+
+      return new Response(JSON.stringify({ success: true, amount: reward }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Process telegram task (one-click)
     if (action === 'process_telegram_task') {
       const { user_id, task_id, task_value } = body;
