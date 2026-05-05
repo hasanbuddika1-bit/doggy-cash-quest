@@ -138,17 +138,22 @@ function UsersTab() {
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-9" />
       <p className="text-xs text-muted-foreground">Total: {users.length} users (sorted by balance)</p>
       <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-        {filtered.map((u) => (
+        {filtered.map((u) => {
+          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, earned: 0 };
+          const bal = Number(u.balance || 0);
+          const suspicious = act.earned > 0 && bal > act.earned * 1.5;
+          return (
           <div key={u.id} className="bg-card rounded-lg p-3 border border-border cursor-pointer hover:border-primary/50" onClick={() => setSelectedUser(u)}>
             <div className="flex justify-between items-start">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
-                <p className="text-xs text-primary font-bold">{Number(u.balance).toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">Ads {activityCounts[u.id]?.ads || 0} • Clicks {activityCounts[u.id]?.clicks || 0} • Admin {activityCounts[u.id]?.adminTasks || 0} • TG {activityCounts[u.id]?.telegramTasks || 0} • Refs {activityCounts[u.id]?.refs || 0} • Codes {activityCounts[u.id]?.codes || 0}</p>
+                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Inconsistent</span>}</p>
+                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Earned ≈ {act.earned.toFixed(0)} 🦴</p>
+                <p className="text-[10px] text-muted-foreground">Ads {act.ads} • Clicks {act.clicks} • Admin {act.adminTasks} • TG {act.telegramTasks} • Refs {act.refs} • Codes {act.codes}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
-                <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'}</p>
+                <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'} | Withdraw: {u.withdraw_unlocked ? '🔓 Unlocked' : '🔒 Normal'}</p>
               </div>
               <div className="flex gap-1 flex-col" onClick={(e) => e.stopPropagation()}>
                 {u.banned ? (
@@ -172,10 +177,17 @@ function UsersTab() {
                 }}>
                   {u.access_tasks_completed ? 'Reset Access' : 'Grant Access'}
                 </Button>
+                <Button size="sm" variant={u.withdraw_unlocked ? 'destructive' : 'outline'} className="h-6 text-[10px]" onClick={async () => {
+                  await adminAction("unlock_withdraw", { target_user_id: u.id, unlocked: !u.withdraw_unlocked });
+                  loadUsers();
+                  toast.success(u.withdraw_unlocked ? '🔒 Withdraw locked' : '🔓 Withdraw requirements filled');
+                }}>
+                  {u.withdraw_unlocked ? '🔒 Lock Withdraw' : '🔓 Fill Requirements'}
+                </Button>
               </div>
             </div>
           </div>
-        ))}
+        );})}
       </div>
     </div>
   );
