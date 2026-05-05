@@ -73,35 +73,52 @@ function UsersTab() {
   useEffect(() => { loadUsers(); }, []);
 
   async function loadUsers() {
-    const { data } = await supabase.from("users").select("*").order("balance", { ascending: false }).limit(200);
-    const list = data || [];
-    setUsers(list);
-    const ids = list.map((u) => u.id);
+    // Fetch all users in pages of 1000 (Supabase limit per query)
+    const all: any[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase.from("users").select("*")
+        .order("balance", { ascending: false }).range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    setUsers(all);
+    const ids = all.map((u) => u.id);
     if (ids.length) {
       const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
-        supabase.from("ad_watches").select("user_id").in("user_id", ids),
-        supabase.from("clicks").select("user_id").in("user_id", ids),
+        supabase.from("ad_watches").select("user_id, earned").in("user_id", ids),
+        supabase.from("clicks").select("user_id, earned").in("user_id", ids),
         supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
-        supabase.from("referrals").select("referrer_id").in("referrer_id", ids),
-        supabase.from("reward_claims").select("user_id").in("user_id", ids),
+        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified").in("referrer_id", ids),
+        supabase.from("reward_claims").select("user_id, amount").in("user_id", ids),
         supabase.from("withdrawals").select("user_id").in("user_id", ids),
       ]);
       const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
+      const taskValues: Record<string, number> = {};
       if (taskIds.length) {
-        const taskMeta = await supabase.from("tasks").select("id, task_type").in("id", taskIds);
-        (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; });
+        const taskMeta = await supabase.from("tasks").select("id, task_type, value").in("id", taskIds);
+        (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; taskValues[t.id] = Number(t.value || 0); });
       }
       const counts: Record<string, any> = {};
-      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0 }; });
-      (ads.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].ads++);
-      (clicks.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].clicks++);
+      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0, earned: 0 }; });
+      (ads.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
+      (clicks.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (tasks.data || []).forEach((r: any) => {
         if (!counts[r.user_id] || r.status !== "approved") return;
+        const tv = taskValues[r.task_id] || 0;
+        counts[r.user_id].earned += tv;
         taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
       });
-      (refs.data || []).forEach((r: any) => counts[r.referrer_id] && counts[r.referrer_id].refs++);
-      (codes.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].codes++);
+      (refs.data || []).forEach((r: any) => {
+        if (!counts[r.referrer_id]) return;
+        counts[r.referrer_id].refs++;
+        if (r.verified) counts[r.referrer_id].earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0);
+      });
+      (codes.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
       (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
       setActivityCounts(counts);
     }
