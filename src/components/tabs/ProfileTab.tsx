@@ -12,14 +12,23 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ user, userId }: ProfileTabProps) {
-  const [wallet, setWallet] = useState(user?.wallet_address || "");
-  const [editing, setEditing] = useState(false);
+  const [aptosWallet, setAptosWallet] = useState(user?.wallet_address || "");
+  const [tonWallet, setTonWallet] = useState(user?.ton_address || "");
+  const [editingAptos, setEditingAptos] = useState(false);
+  const [editingTon, setEditingTon] = useState(false);
   const balance = Number(user?.balance || 0);
 
-  async function saveWallet() {
-    await updateWallet(userId, wallet);
-    toast.success("✅ Wallet updated!");
-    setEditing(false);
+  async function saveAptos() {
+    if (!aptosWallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, aptosWallet, 'usdt_aptos');
+    toast.success("✅ USDT (Aptos) wallet saved!");
+    setEditingAptos(false);
+  }
+  async function saveTon() {
+    if (!tonWallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, tonWallet, 'ton');
+    toast.success("✅ TON wallet saved!");
+    setEditingTon(false);
   }
 
   const countryDisplay = user?.country && user.country !== 'UNKNOWN' 
