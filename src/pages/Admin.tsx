@@ -107,7 +107,11 @@ function UsersTab() {
         (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; taskValues[t.id] = Number(t.value || 0); });
       }
       const counts: Record<string, any> = {};
-      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0, earned: 0 }; });
+      ids.forEach((id) => {
+        const u = all.find(x => x.id === id);
+        const wb = u?.welcome_bonus_claimed ? welcomeBonus : 0;
+        counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawals: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: wb, earned: wb };
+      });
       (ads.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (clicks.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (tasks.data || []).forEach((r: any) => {
@@ -119,10 +123,17 @@ function UsersTab() {
       (refs.data || []).forEach((r: any) => {
         if (!counts[r.referrer_id]) return;
         counts[r.referrer_id].refs++;
-        if (r.verified) counts[r.referrer_id].earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0);
+        if (r.verified && r.reward_claimed) counts[r.referrer_id].earned += Number(r.reward_amount || 0);
+        if (r.verified) counts[r.referrer_id].earned += Number(r.commission_earned || 0);
       });
       (codes.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
+      (weekly.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (withdrawals.data || []).forEach((r: any) => {
+        if (!counts[r.user_id]) return;
+        counts[r.user_id].withdrawals++;
+        if (r.status === 'approved') counts[r.user_id].withdrawnDoggy += Number(r.amount || 0);
+        if (r.status === 'pending') counts[r.user_id].pendingDoggy += Number(r.amount || 0);
+      });
       setActivityCounts(counts);
     }
   }
