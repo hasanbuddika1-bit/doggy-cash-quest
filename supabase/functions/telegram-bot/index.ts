@@ -21,6 +21,10 @@ async function sendTelegram(method: string, body: any, lovableKey: string, teleg
   return res.json();
 }
 
+function escHtml(s: any): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 async function notifyAdmin(text: string, lovableKey: string, telegramKey: string) {
   await sendTelegram('sendMessage', {
     chat_id: ADMIN_CHAT_ID,
