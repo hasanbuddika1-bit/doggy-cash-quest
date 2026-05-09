@@ -88,13 +88,16 @@ function UsersTab() {
     setUsers(all);
     const ids = all.map((u) => u.id);
     if (ids.length) {
-      const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
+      const { data: bonusSetting } = await supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single();
+      const welcomeBonus = Number(bonusSetting?.value || 50);
+      const [ads, clicks, tasks, refs, codes, withdrawals, weekly] = await Promise.all([
         supabase.from("ad_watches").select("user_id, earned").in("user_id", ids),
         supabase.from("clicks").select("user_id, earned").in("user_id", ids),
         supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
-        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified").in("referrer_id", ids),
+        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified, reward_claimed").in("referrer_id", ids),
         supabase.from("reward_claims").select("user_id, amount").in("user_id", ids),
-        supabase.from("withdrawals").select("user_id").in("user_id", ids),
+        supabase.from("withdrawals").select("user_id, amount, status").in("user_id", ids),
+        supabase.from("weekly_challenge_claims").select("user_id, amount").in("user_id", ids),
       ]);
       const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
@@ -104,7 +107,11 @@ function UsersTab() {
         (taskMeta.data || []).forEach((t: any) => { taskTypes[t.id] = t.task_type; taskValues[t.id] = Number(t.value || 0); });
       }
       const counts: Record<string, any> = {};
-      ids.forEach((id) => { counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, withdrawals: 0, earned: 0 }; });
+      ids.forEach((id) => {
+        const u = all.find(x => x.id === id);
+        const wb = u?.welcome_bonus_claimed ? welcomeBonus : 0;
+        counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawals: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: wb, earned: wb };
+      });
       (ads.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (clicks.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (tasks.data || []).forEach((r: any) => {
@@ -116,10 +123,17 @@ function UsersTab() {
       (refs.data || []).forEach((r: any) => {
         if (!counts[r.referrer_id]) return;
         counts[r.referrer_id].refs++;
-        if (r.verified) counts[r.referrer_id].earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0);
+        if (r.verified && r.reward_claimed) counts[r.referrer_id].earned += Number(r.reward_amount || 0);
+        if (r.verified) counts[r.referrer_id].earned += Number(r.commission_earned || 0);
       });
       (codes.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (withdrawals.data || []).forEach((r: any) => counts[r.user_id] && counts[r.user_id].withdrawals++);
+      (weekly.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (withdrawals.data || []).forEach((r: any) => {
+        if (!counts[r.user_id]) return;
+        counts[r.user_id].withdrawals++;
+        if (r.status === 'approved') counts[r.user_id].withdrawnDoggy += Number(r.amount || 0);
+        if (r.status === 'pending') counts[r.user_id].pendingDoggy += Number(r.amount || 0);
+      });
       setActivityCounts(counts);
     }
   }
@@ -139,9 +153,11 @@ function UsersTab() {
       <p className="text-xs text-muted-foreground">Total: {users.length} users (sorted by balance)</p>
       <div className="space-y-2 max-h-[60vh] overflow-y-auto">
         {filtered.map((u) => {
-          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, earned: 0 };
+          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: 0, earned: 0 };
           const bal = Number(u.balance || 0);
-          const suspicious = act.earned > 0 && bal > act.earned * 1.5;
+          const expected = act.earned - act.withdrawnDoggy - act.pendingDoggy;
+          const diff = bal - expected;
+          const suspicious = Math.abs(diff) > Math.max(50, expected * 0.05);
           return (
           <div key={u.id} className="bg-card rounded-lg p-3 border border-border cursor-pointer hover:border-primary/50" onClick={() => setSelectedUser(u)}>
             <div className="flex justify-between items-start">
@@ -149,9 +165,9 @@ function UsersTab() {
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
-                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Inconsistent</span>}</p>
-                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Earned ≈ {act.earned.toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">Ads {act.ads} • Clicks {act.clicks} • Admin {act.adminTasks} • TG {act.telegramTasks} • Refs {act.refs} • Codes {act.codes}</p>
+                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Diff {diff >= 0 ? '+' : ''}{diff.toFixed(0)}</span>}</p>
+                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Expected ≈ {expected.toFixed(0)} 🦴 (Earned {act.earned.toFixed(0)} − Withdrawn {act.withdrawnDoggy.toFixed(0)}{act.pendingDoggy ? ` − Pending ${act.pendingDoggy.toFixed(0)}` : ''})</p>
+                <p className="text-[10px] text-muted-foreground">🎁 {act.welcomeBonus} • 📺 {act.ads} • 🖱️ {act.clicks} • 📋 {act.adminTasks} • 📢 {act.telegramTasks} • 👥 {act.refs} • 🎟️ {act.codes} • 🏆 {act.weekly}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'} | Withdraw: {u.withdraw_unlocked ? '🔓 Unlocked' : '🔒 Normal'}</p>
               </div>
@@ -200,37 +216,78 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   const [clicks, setClicks] = useState<any[]>([]);
   const [taskSubs, setTaskSubs] = useState<any[]>([]);
   const [rewardClaims, setRewardClaims] = useState<any[]>([]);
+  const [weeklyClaims, setWeeklyClaims] = useState<any[]>([]);
+  const [welcomeBonus, setWelcomeBonus] = useState<number>(0);
+
+  // Fetch ALL records (paged) for a single user — to compute 100% accurate totals
+  async function fetchAll(table: string, col: string, val: string) {
+    const sb: any = supabase;
+    const out: any[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await sb.from(table).select("*").eq(col, val).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      out.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return out;
+  }
 
   useEffect(() => {
     const uid = user.id;
-    Promise.all([
-      supabase.from("referrals").select("*").eq("referrer_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("withdrawals").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("ad_watches").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("clicks").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("task_submissions").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-      supabase.from("reward_claims").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
-    ]).then(async ([refs, wds, ads, cls, tsks, codes]) => {
-      const refereeIds = (refs.data || []).map((r: any) => r.referee_id).filter(Boolean);
-      const taskIds = (tsks.data || []).map((t: any) => t.task_id).filter(Boolean);
-      const codeIds = (codes.data || []).map((c: any) => c.code_id).filter(Boolean);
+    (async () => {
+      const [refs, wds, ads, cls, tsks, codes, weekly, bonusSetting] = await Promise.all([
+        fetchAll("referrals", "referrer_id", uid),
+        fetchAll("withdrawals", "user_id", uid),
+        fetchAll("ad_watches", "user_id", uid),
+        fetchAll("clicks", "user_id", uid),
+        fetchAll("task_submissions", "user_id", uid),
+        fetchAll("reward_claims", "user_id", uid),
+        fetchAll("weekly_challenge_claims", "user_id", uid),
+        supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single(),
+      ]);
+      setWelcomeBonus(user.welcome_bonus_claimed ? Number((bonusSetting as any)?.data?.value || 50) : 0);
+
+      const refereeIds = refs.map((r: any) => r.referee_id).filter(Boolean);
+      const taskIds = tsks.map((t: any) => t.task_id).filter(Boolean);
+      const codeIds = codes.map((c: any) => c.code_id).filter(Boolean);
       const [refUsers, taskMeta, codeMeta] = await Promise.all([
         refereeIds.length ? supabase.from("users").select("id, username, first_name, telegram_id").in("id", refereeIds) : Promise.resolve({ data: [] as any[] }),
-        taskIds.length ? supabase.from("tasks").select("id, title, task_type").in("id", taskIds) : Promise.resolve({ data: [] as any[] }),
+        taskIds.length ? supabase.from("tasks").select("id, title, task_type, value").in("id", taskIds) : Promise.resolve({ data: [] as any[] }),
         codeIds.length ? supabase.from("reward_codes").select("id, code").in("id", codeIds) : Promise.resolve({ data: [] as any[] }),
       ]);
       const refMap: Record<string, any> = {}, taskMap: Record<string, any> = {}, codeMap: Record<string, any> = {};
       (refUsers.data || []).forEach((u: any) => { refMap[u.id] = u; });
       (taskMeta.data || []).forEach((t: any) => { taskMap[t.id] = t; });
       (codeMeta.data || []).forEach((c: any) => { codeMap[c.id] = c; });
-      setReferrals((refs.data || []).map((r: any) => ({ ...r, referred_user: refMap[r.referee_id] })));
-      setWithdrawals(wds.data || []);
-      setAdWatches(ads.data || []);
-      setClicks(cls.data || []);
-      setTaskSubs((tsks.data || []).map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
-      setRewardClaims((codes.data || []).map((c: any) => ({ ...c, reward_code: codeMap[c.code_id] })));
-    });
+      setReferrals(refs.map((r: any) => ({ ...r, referred_user: refMap[r.referee_id] })));
+      setWithdrawals(wds);
+      setAdWatches(ads);
+      setClicks(cls);
+      setTaskSubs(tsks.map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
+      setRewardClaims(codes.map((c: any) => ({ ...c, reward_code: codeMap[c.code_id] })));
+      setWeeklyClaims(weekly);
+    })();
   }, [user.id]);
+
+  // Accurate totals
+  const adsEarned = adWatches.reduce((s, a) => s + Number(a.earned || 0), 0);
+  const clicksEarned = clicks.reduce((s, c) => s + Number(c.earned || 0), 0);
+  const tasksApproved = taskSubs.filter(t => t.status === 'approved');
+  const tasksEarned = tasksApproved.reduce((s, t) => s + Number(t.task?.value || 0), 0);
+  const refRewardEarned = referrals.filter(r => r.verified && r.reward_claimed).reduce((s, r) => s + Number(r.reward_amount || 0), 0);
+  const refCommissionEarned = referrals.filter(r => r.verified).reduce((s, r) => s + Number(r.commission_earned || 0), 0);
+  const codesEarned = rewardClaims.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const weeklyEarned = weeklyClaims.reduce((s, w) => s + Number(w.amount || 0), 0);
+  const totalEarned = welcomeBonus + adsEarned + clicksEarned + tasksEarned + refRewardEarned + refCommissionEarned + codesEarned + weeklyEarned;
+  const withdrawnApproved = withdrawals.filter(w => w.status === 'approved').reduce((s, w) => s + Number(w.amount || 0), 0);
+  const withdrawnPending = withdrawals.filter(w => w.status === 'pending').reduce((s, w) => s + Number(w.amount || 0), 0);
+  const expectedBalance = totalEarned - withdrawnApproved - withdrawnPending;
+  const actualBalance = Number(user.balance || 0);
+  const diff = actualBalance - expectedBalance;
+  const accurate = Math.abs(diff) <= Math.max(1, expectedBalance * 0.01);
 
   return (
     <div className="space-y-3 mt-3">
@@ -238,68 +295,122 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
       <div className="bg-card rounded-lg p-3 border border-border">
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
-        <p className="text-xs text-primary font-bold">{Number(user.balance).toFixed(0)} 🦴 | Country: {user.country || 'Unknown'}</p>
+        <p className="text-xs text-primary font-bold">{actualBalance.toFixed(2)} 🦴 | Country: {user.country || 'Unknown'}</p>
         {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
         {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
       </div>
 
-      <div className="bg-card rounded-lg p-3 border border-border">
-        <p className="text-xs font-bold mb-2">📊 Stats: Ads: {adWatches.length} | Clicks: {clicks.length} | Refs: {referrals.length} | Withdrawals: {withdrawals.length} | Tasks: {taskSubs.length} | Codes: {rewardClaims.length}</p>
+      <div className={`rounded-lg p-3 border ${accurate ? 'bg-green-950/30 border-green-700' : 'bg-red-950/30 border-destructive'}`}>
+        <p className="text-xs font-bold mb-2">{accurate ? '✅ Balance Accurate' : '⚠️ Balance Mismatch'}</p>
+        <div className="space-y-0.5 text-[11px]">
+          <p>🎁 Welcome Bonus: <b>+{welcomeBonus.toFixed(2)}</b></p>
+          <p>📺 Ads ({adWatches.length}): <b>+{adsEarned.toFixed(2)}</b></p>
+          <p>🖱️ Clicks ({clicks.length}): <b>+{clicksEarned.toFixed(2)}</b></p>
+          <p>📋 Tasks Approved ({tasksApproved.length}/{taskSubs.length}): <b>+{tasksEarned.toFixed(2)}</b></p>
+          <p>👥 Referrals Reward ({referrals.filter(r=>r.verified && r.reward_claimed).length}): <b>+{refRewardEarned.toFixed(2)}</b></p>
+          <p>💰 Referral Commissions: <b>+{refCommissionEarned.toFixed(2)}</b></p>
+          <p>🎟️ Reward Codes ({rewardClaims.length}): <b>+{codesEarned.toFixed(2)}</b></p>
+          <p>🏆 Weekly Challenges ({weeklyClaims.length}): <b>+{weeklyEarned.toFixed(2)}</b></p>
+          <hr className="border-border my-1" />
+          <p className="font-bold">Total Earned: <b>{totalEarned.toFixed(2)} 🦴</b></p>
+          <p>💸 Withdrawn (approved): <b>−{withdrawnApproved.toFixed(2)}</b></p>
+          <p>⏳ Pending withdrawal: <b>−{withdrawnPending.toFixed(2)}</b></p>
+          <hr className="border-border my-1" />
+          <p className="font-bold">Expected Balance: <b>{expectedBalance.toFixed(2)} 🦴</b></p>
+          <p className="font-bold">Actual Balance: <b>{actualBalance.toFixed(2)} 🦴</b></p>
+          <p className={`font-bold ${accurate ? 'text-green-400' : 'text-destructive'}`}>Difference: {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 🦴</p>
+        </div>
       </div>
 
       {referrals.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">👥 Referrals</p>
+          <p className="text-xs font-bold mb-1">👥 Referrals ({referrals.length})</p>
+          <div className="max-h-40 overflow-y-auto">
           {referrals.map(r => (
             <p key={r.id} className="text-[10px] text-muted-foreground">
-              @{r.referred_user?.username || r.referred_user?.first_name || r.referred_user?.telegram_id || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Claimed: {r.reward_claimed ? '✅' : '❌'} | {new Date(r.created_at).toLocaleDateString()}
+              @{r.referred_user?.username || r.referred_user?.first_name || r.referred_user?.telegram_id || 'Unknown'} — {r.verified ? '✅ Verified' : '⏳ Pending'} | Reward: {r.reward_claimed ? `✅ +${r.reward_amount}` : '❌'} | Comm: +{Number(r.commission_earned || 0).toFixed(2)} | {new Date(r.created_at).toLocaleDateString()}
             </p>
           ))}
+          </div>
         </div>
       )}
 
       {withdrawals.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">💸 Withdrawals</p>
+          <p className="text-xs font-bold mb-1">💸 Withdrawals ({withdrawals.length})</p>
+          <div className="max-h-40 overflow-y-auto">
           {withdrawals.map(w => (
             <p key={w.id} className="text-[10px] text-muted-foreground">
-              {Number(w.amount).toFixed(0)} 🦴 → ${Number(w.net_usdt || w.usdt_amount).toFixed(4)} | {w.status.toUpperCase()} | {new Date(w.created_at).toLocaleDateString()}
+              {Number(w.amount).toFixed(0)} 🦴 → ${Number(w.net_usdt || w.usdt_amount).toFixed(4)} | <span className={w.status==='approved'?'text-green-400':w.status==='rejected'?'text-red-400':'text-yellow-400'}>{w.status.toUpperCase()}</span> | {new Date(w.created_at).toLocaleDateString()}
             </p>
           ))}
+          </div>
         </div>
       )}
 
       {adWatches.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">📺 Ad Watches (last {adWatches.length})</p>
-          {adWatches.slice(0, 10).map(a => (
+          <p className="text-xs font-bold mb-1">📺 Ad Watches ({adWatches.length})</p>
+          <div className="max-h-40 overflow-y-auto">
+          {adWatches.slice(0, 50).map(a => (
             <p key={a.id} className="text-[10px] text-muted-foreground">
               Ad #{a.ad_index} — +{a.earned} 🦴 | {new Date(a.created_at).toLocaleString()}
             </p>
           ))}
+          </div>
+        </div>
+      )}
+
+      {clicks.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🖱️ Clicks ({clicks.length})</p>
+          <div className="max-h-40 overflow-y-auto">
+          {clicks.slice(0, 50).map(c => (
+            <p key={c.id} className="text-[10px] text-muted-foreground">
+              +{c.earned} 🦴 | {new Date(c.created_at).toLocaleString()}
+            </p>
+          ))}
+          </div>
         </div>
       )}
 
       {taskSubs.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">📋 Task Submissions</p>
+          <p className="text-xs font-bold mb-1">📋 Task Submissions ({taskSubs.length})</p>
+          <div className="max-h-40 overflow-y-auto">
           {taskSubs.map(t => (
             <p key={t.id} className="text-[10px] text-muted-foreground">
-              {t.task?.title || 'Unknown'} ({t.task?.task_type === 'one_click' ? 'TG' : 'Admin'}) — {t.status.toUpperCase()} | {new Date(t.created_at).toLocaleDateString()}
+              {t.task?.title || 'Unknown'} ({t.task?.task_type === 'one_click' ? 'TG' : 'Admin'}) +{t.task?.value || 0} — <span className={t.status==='approved'?'text-green-400':t.status==='rejected'?'text-red-400':'text-yellow-400'}>{t.status.toUpperCase()}</span> | {new Date(t.created_at).toLocaleDateString()}
             </p>
           ))}
+          </div>
         </div>
       )}
 
       {rewardClaims.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">🎁 Reward Codes</p>
+          <p className="text-xs font-bold mb-1">🎟️ Reward Codes ({rewardClaims.length})</p>
+          <div className="max-h-40 overflow-y-auto">
           {rewardClaims.map(c => (
             <p key={c.id} className="text-[10px] text-muted-foreground">
               {c.reward_code?.code || 'Code'} — +{c.amount} 🦴 | {new Date(c.created_at).toLocaleDateString()}
             </p>
           ))}
+          </div>
+        </div>
+      )}
+
+      {weeklyClaims.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🏆 Weekly Challenges ({weeklyClaims.length})</p>
+          <div className="max-h-40 overflow-y-auto">
+          {weeklyClaims.map(w => (
+            <p key={w.id} className="text-[10px] text-muted-foreground">
+              {w.challenge_key} — +{w.amount} 🦴 | week {new Date(w.week_start).toLocaleDateString()} | claimed {new Date(w.created_at).toLocaleDateString()}
+            </p>
+          ))}
+          </div>
         </div>
       )}
     </div>
