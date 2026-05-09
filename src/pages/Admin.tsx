@@ -88,13 +88,16 @@ function UsersTab() {
     setUsers(all);
     const ids = all.map((u) => u.id);
     if (ids.length) {
-      const [ads, clicks, tasks, refs, codes, withdrawals] = await Promise.all([
+      const { data: bonusSetting } = await supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single();
+      const welcomeBonus = Number(bonusSetting?.value || 50);
+      const [ads, clicks, tasks, refs, codes, withdrawals, weekly] = await Promise.all([
         supabase.from("ad_watches").select("user_id, earned").in("user_id", ids),
         supabase.from("clicks").select("user_id, earned").in("user_id", ids),
         supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
-        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified").in("referrer_id", ids),
+        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified, reward_claimed").in("referrer_id", ids),
         supabase.from("reward_claims").select("user_id, amount").in("user_id", ids),
-        supabase.from("withdrawals").select("user_id").in("user_id", ids),
+        supabase.from("withdrawals").select("user_id, amount, status").in("user_id", ids),
+        supabase.from("weekly_challenge_claims").select("user_id, amount").in("user_id", ids),
       ]);
       const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
