@@ -301,18 +301,23 @@ Deno.serve(async (req) => {
 
       const netUsdt = Number(w.net_usdt || w.usdt_amount);
       const tonAmt = Number(w.ton_amount || 0);
+      const txHashClean = String(tx_hash).trim();
       const txExplorer = isTon
-        ? `https://tonviewer.com/transaction/${encodeURIComponent(String(tx_hash).trim())}`
-        : `https://explorer.aptoslabs.com/txn/${encodeURIComponent(String(tx_hash).trim())}?network=mainnet`;
+        ? `https://tonviewer.com/transaction/${encodeURIComponent(txHashClean)}`
+        : `https://explorer.aptoslabs.com/txn/${encodeURIComponent(txHashClean)}?network=mainnet`;
       const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
       const paidLine = isTon
         ? `🪙 Paid: <b>${tonAmt} TON</b> (~$${netUsdt.toFixed(4)})`
         : `💵 Paid: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
+      const safeWallet = escHtml(w.wallet_address);
+      const safeTx = escHtml(txHashClean);
+      const safeUname = escHtml((w.users as any)?.username || 'unknown');
+
       if ((w.users as any)?.telegram_id) {
         await sendTelegram('sendMessage', {
           chat_id: (w.users as any).telegram_id,
-          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n📤 Wallet: <code>${w.wallet_address}</code>\n🔗 TX: <code>${tx_hash}</code>\n\nThanks for using Doggy Cash! 🐶`,
+          text: `✅🎉 <b>Withdrawal Approved!</b> 💰\n\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n📤 Wallet: <code>${safeWallet}</code>\n🔗 TX: <code>${safeTx}</code>\n\nThanks for using Doggy Cash! 🐶`,
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -324,29 +329,43 @@ Deno.serve(async (req) => {
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
-      // Public payment channel post with tx link
+      // Public payment channel post with tx link (with plain-text fallback)
       try {
-        const uname = (w.users as any)?.username ? `@${(w.users as any).username}` : 'a user';
-        const channelResp = await sendTelegram('sendMessage', {
+        const uname = (w.users as any)?.username ? `@${safeUname}` : 'a user';
+        const channelText = `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n🔗 TX: <code>${safeTx}</code>\n\n🐶 Earn yours on Doggy Cash!`;
+        const replyMarkup = JSON.stringify({
+          inline_keyboard: [
+            [{ text: '🔍 View Transaction', url: txExplorer }],
+            [{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }],
+          ],
+        });
+        let channelResp = await sendTelegram('sendMessage', {
           chat_id: '@bluetonpayment',
-          text: `✅💸 <b>New Payment Sent!</b> 🎉\n\n👤 User: ${uname}\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${w.amount} Doggy</b>\n${paidLine}\n🔗 TX: <code>${tx_hash}</code>\n\n🐶 Earn yours on Doggy Cash!`,
+          text: channelText,
           parse_mode: 'HTML',
-          reply_markup: JSON.stringify({
-            inline_keyboard: [
-              [{ text: '🔍 View Transaction', url: txExplorer }],
-              [{ text: '🐶 Open Mini App', url: 'https://t.me/Doggycash1bot?startapp' }],
-            ],
-          }),
+          reply_markup: replyMarkup,
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+
+        // Retry without HTML if parsing failed
         if (!channelResp?.ok) {
-          await notifyAdmin(`⚠️ Payment channel post FAILED\n${JSON.stringify(channelResp).slice(0, 500)}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+          const plainText = `✅ New Payment Sent!\n\nUser: ${(w.users as any)?.username ? '@' + (w.users as any).username : 'a user'}\nMethod: ${isTon ? 'TON' : 'USDT (Aptos)'}\nAmount: ${w.amount} Doggy\n${isTon ? `Paid: ${tonAmt} TON (~$${netUsdt.toFixed(4)})` : `Paid: $${netUsdt.toFixed(4)} USDT`}\nTX: ${txHashClean}\n\nEarn yours on Doggy Cash! 🐶`;
+          channelResp = await sendTelegram('sendMessage', {
+            chat_id: '@bluetonpayment',
+            text: plainText,
+            reply_markup: replyMarkup,
+            disable_web_page_preview: true,
+          }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+        }
+
+        if (!channelResp?.ok) {
+          await notifyAdmin(`⚠️ Payment channel post FAILED\n${escHtml(JSON.stringify(channelResp).slice(0, 500))}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         }
       } catch (e) {
-        await notifyAdmin(`⚠️ Payment channel error: ${String(e).slice(0, 300)}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+        await notifyAdmin(`⚠️ Payment channel error: ${escHtml(String(e).slice(0, 300))}`, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
 
       await notifyAdmin(
-        `💸✅ <b>Withdrawal Approved</b>\n\nUser: @${(w.users as any)?.username || 'unknown'}\nMethod: ${methodLabel}\nAmount: ${w.amount} Doggy\n${paidLine}\nTX: <code>${tx_hash}</code>`,
+        `💸✅ <b>Withdrawal Approved</b>\n\nUser: @${safeUname}\nMethod: ${methodLabel}\nAmount: ${w.amount} Doggy\n${paidLine}\nTX: <code>${safeTx}</code>`,
         LOVABLE_API_KEY, TELEGRAM_API_KEY
       );
 
