@@ -153,9 +153,11 @@ function UsersTab() {
       <p className="text-xs text-muted-foreground">Total: {users.length} users (sorted by balance)</p>
       <div className="space-y-2 max-h-[60vh] overflow-y-auto">
         {filtered.map((u) => {
-          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, earned: 0 };
+          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: 0, earned: 0 };
           const bal = Number(u.balance || 0);
-          const suspicious = act.earned > 0 && bal > act.earned * 1.5;
+          const expected = act.earned - act.withdrawnDoggy - act.pendingDoggy;
+          const diff = bal - expected;
+          const suspicious = Math.abs(diff) > Math.max(50, expected * 0.05);
           return (
           <div key={u.id} className="bg-card rounded-lg p-3 border border-border cursor-pointer hover:border-primary/50" onClick={() => setSelectedUser(u)}>
             <div className="flex justify-between items-start">
@@ -163,9 +165,9 @@ function UsersTab() {
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
-                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Inconsistent</span>}</p>
-                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Earned ≈ {act.earned.toFixed(0)} 🦴</p>
-                <p className="text-[10px] text-muted-foreground">Ads {act.ads} • Clicks {act.clicks} • Admin {act.adminTasks} • TG {act.telegramTasks} • Refs {act.refs} • Codes {act.codes}</p>
+                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Diff {diff >= 0 ? '+' : ''}{diff.toFixed(0)}</span>}</p>
+                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Expected ≈ {expected.toFixed(0)} 🦴 (Earned {act.earned.toFixed(0)} − Withdrawn {act.withdrawnDoggy.toFixed(0)}{act.pendingDoggy ? ` − Pending ${act.pendingDoggy.toFixed(0)}` : ''})</p>
+                <p className="text-[10px] text-muted-foreground">🎁 {act.welcomeBonus} • 📺 {act.ads} • 🖱️ {act.clicks} • 📋 {act.adminTasks} • 📢 {act.telegramTasks} • 👥 {act.refs} • 🎟️ {act.codes} • 🏆 {act.weekly}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'} | Withdraw: {u.withdraw_unlocked ? '🔓 Unlocked' : '🔒 Normal'}</p>
               </div>
