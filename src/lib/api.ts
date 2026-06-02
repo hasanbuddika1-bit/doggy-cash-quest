@@ -49,7 +49,15 @@ export async function getTonPrice(): Promise<number> {
   catch { return 0; }
 }
 
-export async function detectCountry() { return callEdgeFunction("geo-detect", {}); }
+export async function detectCountry(): Promise<{ country: string }> {
+  try {
+    const res = await fetch("https://ipapi.co/json/");
+    const data = await res.json();
+    return { country: data?.country_name || data?.country || "Unknown" };
+  } catch {
+    return { country: "Unknown" };
+  }
+}
 
 export async function processAdReward(userId: string, adIndex: number, earned: number, watchSeconds: number, network: string = 'adsgram') {
   return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned, watch_seconds: watchSeconds, network });
