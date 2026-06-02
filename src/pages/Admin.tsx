@@ -34,7 +34,7 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <h1 className="text-xl font-display font-bold text-gradient-gold mb-4">🐶 Doggy Cash Admin</h1>
+      <h1 className="text-xl font-display font-bold text-gradient-gold mb-4">🐰 Bunny Earn Hub Admin</h1>
       <Tabs defaultValue="users">
         <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-card">
           <TabsTrigger value="users" className="text-xs">👥 Users</TabsTrigger>
@@ -165,8 +165,8 @@ function UsersTab() {
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | ID: {u.telegram_id}</p>
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
-                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🦴 {suspicious && <span className="text-destructive">⚠️ Diff {diff >= 0 ? '+' : ''}{diff.toFixed(0)}</span>}</p>
-                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Expected ≈ {expected.toFixed(0)} 🦴 (Earned {act.earned.toFixed(0)} − Withdrawn {act.withdrawnDoggy.toFixed(0)}{act.pendingDoggy ? ` − Pending ${act.pendingDoggy.toFixed(0)}` : ''})</p>
+                <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🐰 {suspicious && <span className="text-destructive">⚠️ Diff {diff >= 0 ? '+' : ''}{diff.toFixed(0)}</span>}</p>
+                <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Expected ≈ {expected.toFixed(0)} 🐰 (Earned {act.earned.toFixed(0)} − Withdrawn {act.withdrawnDoggy.toFixed(0)}{act.pendingDoggy ? ` − Pending ${act.pendingDoggy.toFixed(0)}` : ''})</p>
                 <p className="text-[10px] text-muted-foreground">🎁 {act.welcomeBonus} • 📺 {act.ads} • 🖱️ {act.clicks} • 📋 {act.adminTasks} • 📢 {act.telegramTasks} • 👥 {act.refs} • 🎟️ {act.codes} • 🏆 {act.weekly}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'} | Withdraw: {u.withdraw_unlocked ? '🔓 Unlocked' : '🔒 Normal'}</p>
@@ -295,7 +295,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
       <div className="bg-card rounded-lg p-3 border border-border">
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
-        <p className="text-xs text-primary font-bold">{actualBalance.toFixed(2)} 🦴 | Country: {user.country || 'Unknown'}</p>
+        <p className="text-xs text-primary font-bold">{actualBalance.toFixed(2)} 🐰 | Country: {user.country || 'Unknown'}</p>
         {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
         {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
@@ -313,13 +313,13 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p>🎟️ Reward Codes ({rewardClaims.length}): <b>+{codesEarned.toFixed(2)}</b></p>
           <p>🏆 Weekly Challenges ({weeklyClaims.length}): <b>+{weeklyEarned.toFixed(2)}</b></p>
           <hr className="border-border my-1" />
-          <p className="font-bold">Total Earned: <b>{totalEarned.toFixed(2)} 🦴</b></p>
+          <p className="font-bold">Total Earned: <b>{totalEarned.toFixed(2)} 🐰</b></p>
           <p>💸 Withdrawn (approved): <b>−{withdrawnApproved.toFixed(2)}</b></p>
           <p>⏳ Pending withdrawal: <b>−{withdrawnPending.toFixed(2)}</b></p>
           <hr className="border-border my-1" />
-          <p className="font-bold">Expected Balance: <b>{expectedBalance.toFixed(2)} 🦴</b></p>
-          <p className="font-bold">Actual Balance: <b>{actualBalance.toFixed(2)} 🦴</b></p>
-          <p className={`font-bold ${accurate ? 'text-green-400' : 'text-destructive'}`}>Difference: {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 🦴</p>
+          <p className="font-bold">Expected Balance: <b>{expectedBalance.toFixed(2)} 🐰</b></p>
+          <p className="font-bold">Actual Balance: <b>{actualBalance.toFixed(2)} 🐰</b></p>
+          <p className={`font-bold ${accurate ? 'text-green-400' : 'text-destructive'}`}>Difference: {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 🐰</p>
         </div>
       </div>
 
@@ -342,7 +342,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <div className="max-h-40 overflow-y-auto">
           {withdrawals.map(w => (
             <p key={w.id} className="text-[10px] text-muted-foreground">
-              {Number(w.amount).toFixed(0)} 🦴 → ${Number(w.net_usdt || w.usdt_amount).toFixed(4)} | <span className={w.status==='approved'?'text-green-400':w.status==='rejected'?'text-red-400':'text-yellow-400'}>{w.status.toUpperCase()}</span> | {new Date(w.created_at).toLocaleDateString()}
+              {Number(w.amount).toFixed(0)} 🐰 → ${Number(w.net_usdt || w.usdt_amount).toFixed(4)} | <span className={w.status==='approved'?'text-green-400':w.status==='rejected'?'text-red-400':'text-yellow-400'}>{w.status.toUpperCase()}</span> | {new Date(w.created_at).toLocaleDateString()}
             </p>
           ))}
           </div>
@@ -355,7 +355,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <div className="max-h-40 overflow-y-auto">
           {adWatches.slice(0, 50).map(a => (
             <p key={a.id} className="text-[10px] text-muted-foreground">
-              Ad #{a.ad_index} — +{a.earned} 🦴 | {new Date(a.created_at).toLocaleString()}
+              Ad #{a.ad_index} — +{a.earned} 🐰 | {new Date(a.created_at).toLocaleString()}
             </p>
           ))}
           </div>
@@ -368,7 +368,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <div className="max-h-40 overflow-y-auto">
           {clicks.slice(0, 50).map(c => (
             <p key={c.id} className="text-[10px] text-muted-foreground">
-              +{c.earned} 🦴 | {new Date(c.created_at).toLocaleString()}
+              +{c.earned} 🐰 | {new Date(c.created_at).toLocaleString()}
             </p>
           ))}
           </div>
@@ -394,7 +394,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <div className="max-h-40 overflow-y-auto">
           {rewardClaims.map(c => (
             <p key={c.id} className="text-[10px] text-muted-foreground">
-              {c.reward_code?.code || 'Code'} — +{c.amount} 🦴 | {new Date(c.created_at).toLocaleDateString()}
+              {c.reward_code?.code || 'Code'} — +{c.amount} 🐰 | {new Date(c.created_at).toLocaleDateString()}
             </p>
           ))}
           </div>
@@ -407,7 +407,7 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <div className="max-h-40 overflow-y-auto">
           {weeklyClaims.map(w => (
             <p key={w.id} className="text-[10px] text-muted-foreground">
-              {w.challenge_key} — +{w.amount} 🦴 | week {new Date(w.week_start).toLocaleDateString()} | claimed {new Date(w.created_at).toLocaleDateString()}
+              {w.challenge_key} — +{w.amount} 🐰 | week {new Date(w.week_start).toLocaleDateString()} | claimed {new Date(w.created_at).toLocaleDateString()}
             </p>
           ))}
           </div>
@@ -438,7 +438,7 @@ function SuspendedTab() {
                 <p className="text-sm font-semibold">{u.first_name || u.username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">@{u.username} | TG: {u.telegram_id}</p>
                 <p className="text-xs text-destructive font-bold">IP: {u.ip_address || 'N/A'}</p>
-                <p className="text-xs text-muted-foreground">Balance: {Number(u.balance).toFixed(0)} 🦴</p>
+                <p className="text-xs text-muted-foreground">Balance: {Number(u.balance).toFixed(0)} 🐰</p>
                 <p className="text-[10px] text-muted-foreground">Banned: {new Date(u.updated_at).toLocaleString()}</p>
               </div>
               <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={async () => {
@@ -497,7 +497,7 @@ function TasksTab({ taskType }: { taskType: string }) {
         ) : (
           <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Task link" className="h-8 text-xs" />
         )}
-        <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Doggy value" className="h-8 text-xs" />
+        <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Bunny value" className="h-8 text-xs" />
         <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={createTask}>Create Task</Button>
       </div>
       {tasks.map((t) => (
@@ -505,7 +505,7 @@ function TasksTab({ taskType }: { taskType: string }) {
           <div className="flex justify-between">
             <div>
               <p className="text-sm font-semibold">{t.title}</p>
-              <p className="text-xs text-primary">+{t.value} 🦴</p>
+              <p className="text-xs text-primary">+{t.value} 🐰</p>
               {t.telegram_channel && <p className="text-[10px] text-muted-foreground">@{t.telegram_channel}</p>}
             </div>
             <div className="flex gap-1">
@@ -553,7 +553,7 @@ function SubmissionsTab() {
       {subs.map((s) => (
         <div key={s.id} className="bg-card rounded-lg p-3 border border-border">
           <p className="text-xs font-semibold">{(s.tasks as any)?.title} - @{(s.users as any)?.username}</p>
-          <p className="text-xs text-primary">+{(s.tasks as any)?.value} 🦴</p>
+          <p className="text-xs text-primary">+{(s.tasks as any)?.value} 🐰</p>
           {s.image_url && <a href={s.image_url} target="_blank" className="text-xs text-blue-400 underline">View Image</a>}
           <p className={`text-xs font-bold mt-1 ${s.status === 'approved' ? 'text-green-400' : s.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'}`}>
             {s.status.toUpperCase()}
@@ -657,7 +657,7 @@ function WithdrawalsTab() {
                 <p className="text-xs font-semibold flex items-center gap-1">
                   {isTon ? '🔵 TON' : '🟢 USDT (Aptos)'} • @{u?.username}
                 </p>
-                <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🦴</p>
+                <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🐰</p>
                 <p className="text-[10px] text-muted-foreground">
                   Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}
                 </p>
@@ -667,7 +667,7 @@ function WithdrawalsTab() {
                 <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
                 <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
                 <p className={`text-[10px] mt-1 ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
-                  Balance: {userBalance.toFixed(0)} 🦴 | Earned: {act.earned.toFixed(0)} 🦴 | Ads {act.ads} • Clicks {act.clicks} • Refs {act.refs} • Codes {act.codes}
+                  Balance: {userBalance.toFixed(0)} 🐰 | Earned: {act.earned.toFixed(0)} 🐰 | Ads {act.ads} • Clicks {act.clicks} • Refs {act.refs} • Codes {act.codes}
                   {suspicious && ' ⚠️ Inconsistent'}
                 </p>
                 {w.tx_hash && <p className="text-[10px] text-blue-400 break-all">TX: {w.tx_hash}</p>}
@@ -738,7 +738,7 @@ function CodesTab() {
         <div key={c.id} className="bg-card rounded-lg p-3 border border-border flex justify-between">
           <div>
             <p className="text-sm font-mono font-bold">{c.code}</p>
-            <p className="text-xs text-primary">+{c.value} 🦴 • {c.current_uses}/{c.max_uses} used</p>
+            <p className="text-xs text-primary">+{c.value} 🐰 • {c.current_uses}/{c.max_uses} used</p>
           </div>
           <Button size="sm" variant={c.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
             await adminAction("update_code", { code_id: c.id, updates: { active: !c.active } });

@@ -2,12 +2,34 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
+const ADMIN_CHAT_ID = '5419054691';
+const MINI_APP_URL = 'https://doggy-cash-quest.lovable.app';
+const PAYMENT_CHANNEL = '@bunnyearnhubpay';
+const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
+
+async function sendTelegram(method: string, body: any, lovableKey?: string, telegramKey?: string) {
+  if (BUNNY_BOT_TOKEN) {
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${BUNNY_BOT_TOKEN}/${method}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      return r.json();
+    } catch (e) { return { ok: false, error: String(e) }; }
+  }
+  if (!lovableKey || !telegramKey) return { ok: false };
+  const res = await fetch(`${GATEWAY_URL}/${method}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${lovableKey}`, 'X-Connection-Api-Key': telegramKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
-  const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY')!;
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
@@ -24,69 +46,52 @@ Deno.serve(async (req) => {
     (settings || []).forEach((x: any) => { s[x.key] = x.value; });
 
     const minAmount = Number(s.min_withdraw || 500);
-    const dailyAdsReq = Number(s.daily_ads_required || 10);
-    const dailyClicksReq = Number(s.daily_clicks_required || 3);
+    const dailyAdsReq = Number(s.daily_ads_required || 40);
     const totalRefReq = Number(s.total_referrals_required || 2);
-    const withdrawAdsReq = Number(s.withdraw_ads_required || 2);
     const rate = Number(s.doggy_to_usdt_rate || 0.0001);
 
-    // Method-specific settings
     const isTon = method === 'ton';
-    if (isTon && s.ton_enabled !== 'true') {
-      return new Response(JSON.stringify({ success: false, message: 'TON withdrawals are disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (!isTon && s.aptos_enabled !== 'true') {
-      return new Response(JSON.stringify({ success: false, message: 'USDT (Aptos) withdrawals are disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    if (isTon && s.ton_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'TON withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!isTon && s.aptos_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'USDT (Aptos) withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const feeFixed = isTon ? Number(s.ton_fee_fixed || 0.005) : Number(s.withdraw_fee_fixed || 0.01);
     const feePercent = isTon ? Number(s.ton_fee_percent || 2) : Number(s.withdraw_fee_percent || 2);
     const maxWithdrawUsdt = isTon ? Number(s.ton_max_usdt || 0.1) : Number(s.max_withdraw_usdt || 0.1);
 
-    if (amount < minAmount) {
-      return new Response(JSON.stringify({ success: false, message: `Minimum ${minAmount} Doggy` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (Number(user.balance) < amount) {
-      return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    if (amount < minAmount) return new Response(JSON.stringify({ success: false, message: `Minimum ${minAmount} Bunny` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (Number(user.balance) < amount) return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const grossUsdt = amount * rate;
-    if (grossUsdt > maxWithdrawUsdt) {
-      return new Response(JSON.stringify({ success: false, message: `Maximum ${maxWithdrawUsdt} USDT per withdrawal` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    if (grossUsdt > maxWithdrawUsdt) return new Response(JSON.stringify({ success: false, message: `Maximum ${maxWithdrawUsdt} USDT per withdrawal` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const { data: pending } = await supabase.from('withdrawals').select('id').eq('user_id', user_id).eq('status', 'pending');
-    if (pending && pending.length > 0) {
-      return new Response(JSON.stringify({ success: false, message: 'You have a pending withdrawal' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    if (pending && pending.length > 0) return new Response(JSON.stringify({ success: false, message: 'You have a pending withdrawal' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    // Admins can fill all requirements for a user via withdraw_unlocked flag
     if (!user.withdraw_unlocked) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const todayISO = today.toISOString();
 
       const { count: dailyAds } = await supabase.from('ad_watches').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
-      if ((dailyAds || 0) < withdrawAdsReq) return new Response(JSON.stringify({ success: false, message: `Watch at least ${withdrawAdsReq} ads before withdrawing` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       if ((dailyAds || 0) < dailyAdsReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyAdsReq} daily ads watched` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      const { count: dailyClicks } = await supabase.from('clicks').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
-      if ((dailyClicks || 0) < dailyClicksReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyClicksReq} daily clicks` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).in('status', ['half_active', 'active']);
+      if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} half-active/active referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).eq('verified', true);
-      if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} verified referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
-      const { data: telegramTasks } = await supabase.from('tasks').select('id').eq('active', true).eq('task_type', 'one_click');
-      const tIds = (telegramTasks || []).map((t: any) => t.id);
-      if (tIds.length > 0) {
-        const { count: done } = await supabase.from('task_submissions').select('*', { count: 'exact', head: true }).eq('user_id', user_id).in('task_id', tIds).eq('status', 'approved');
-        if ((done || 0) < tIds.length) return new Response(JSON.stringify({ success: false, message: 'Complete all Telegram tasks before withdrawing' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      const [mainRes, partnerRes, completionsRes] = await Promise.all([
+        supabase.from('tasks').select('id').eq('active', true).eq('category', 'main').eq('gives_reward', true),
+        supabase.from('tasks').select('id').eq('active', true).eq('category', 'partner').eq('gives_reward', true),
+        supabase.from('task_completions').select('task_id').eq('user_id', user_id),
+      ]);
+      const done = new Set((completionsRes.data || []).map((c: any) => c.task_id));
+      const mainIds = (mainRes.data || []).map((t: any) => t.id);
+      const partnerIds = (partnerRes.data || []).map((t: any) => t.id);
+      if (mainIds.length > 0 && !mainIds.every(id => done.has(id))) return new Response(JSON.stringify({ success: false, message: 'Complete all Main tasks first' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (partnerIds.length > 0 && !partnerIds.every(id => done.has(id))) return new Response(JSON.stringify({ success: false, message: 'Complete all Partner tasks first' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const fee = feeFixed + (grossUsdt * feePercent / 100);
     const netUsdt = Math.max(0, grossUsdt - fee);
 
-    // For TON, fetch live price and compute TON amount
     let tonAmount: number | null = null;
     if (isTon) {
       try {
@@ -94,7 +99,7 @@ Deno.serve(async (req) => {
         const j = await r.json();
         const tonUsd = Number(j?.ton_usdt);
         if (tonUsd > 0) tonAmount = Number((netUsdt / tonUsd).toFixed(6));
-      } catch (_e) { /* ignore */ }
+      } catch {}
     }
 
     await supabase.from('withdrawals').insert({
@@ -102,36 +107,26 @@ Deno.serve(async (req) => {
       wallet_address, method, ton_amount: tonAmount, status: 'pending',
     });
 
-    // Save the address to the appropriate field
-    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address };
+    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: wallet_address };
     await supabase.from('users').update(update).eq('id', user_id);
 
-    const ADMIN_CHAT_ID = '5419054691';
     const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
     const amountLine = isTon && tonAmount ? `🪙 TON: <b>${tonAmount} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
-    await fetch(`${GATEWAY_URL}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: ADMIN_CHAT_ID,
-        text: `📤💰 <b>New Withdrawal Request!</b> 🐶\n\n👤 User: @${user.username || 'unknown'}\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${amount} Doggy</b>\n💵 Gross: $${grossUsdt.toFixed(4)} USDT\n💸 Fee: $${fee.toFixed(4)}\n${amountLine}\n📤 Wallet: <code>${wallet_address}</code>`,
-        parse_mode: 'HTML',
-      }),
-    });
+    await sendTelegram('sendMessage', {
+      chat_id: ADMIN_CHAT_ID,
+      text: `📤💰 <b>New Withdrawal Request!</b> 🐰\n\n👤 User: @${user.username || 'unknown'}\n💳 Method: ${methodLabel}\n🐰 Amount: <b>${amount} Bunny</b>\n💵 Gross: $${grossUsdt.toFixed(4)} USDT\n💸 Fee: $${fee.toFixed(4)}\n${amountLine}\n📤 Wallet: <code>${wallet_address}</code>`,
+      parse_mode: 'HTML',
+    }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
 
-    await fetch(`${GATEWAY_URL}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': TELEGRAM_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: user.telegram_id,
-        text: `📤✨ <b>Withdrawal Submitted!</b> 🐶\n\n💳 Method: ${methodLabel}\n🦴 Amount: <b>${amount} Doggy</b>\n💸 Fee: $${fee.toFixed(4)}\n${amountLine}\n\n⏳ Please wait for admin approval.`,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [[{ text: '🐶 Open Mini App', web_app: { url: 'https://doggy-cash-quest.lovable.app' } }]],
-        }),
+    await sendTelegram('sendMessage', {
+      chat_id: user.telegram_id,
+      text: `📤✨ <b>Withdrawal Submitted!</b> 🐰\n\n💳 Method: ${methodLabel}\n🐰 Amount: <b>${amount} Bunny</b>\n💸 Fee: $${fee.toFixed(4)}\n${amountLine}\n\n⏳ Please wait for admin approval.`,
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify({
+        inline_keyboard: [[{ text: '🐰 Open Mini App', web_app: { url: MINI_APP_URL } }]],
       }),
-    });
+    }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error: unknown) {

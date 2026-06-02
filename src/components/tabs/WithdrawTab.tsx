@@ -10,17 +10,15 @@ import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import tonLogo from "@/assets/ton-logo.png";
 import aptosLogo from "@/assets/aptos-logo.png";
+import { GuideButton } from "@/components/GuideButton";
 
-interface WithdrawTabProps {
-  userId: string;
-  user: any;
-}
+interface WithdrawTabProps { userId: string; user: any; }
 
 type Method = 'usdt_aptos' | 'ton';
 
 export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [method, setMethod] = useState<Method>('usdt_aptos');
-  const [aptosAddress, setAptosAddress] = useState(user?.wallet_address || "");
+  const [aptosAddress, setAptosAddress] = useState(user?.aptos_address || user?.wallet_address || "");
   const [tonAddress, setTonAddress] = useState(user?.ton_address || "");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +26,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [hasPending, setHasPending] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [tonPrice, setTonPrice] = useState(0);
-  const [stats, setStats] = useState({ dailyAds: 0, dailyClicks: 0, totalRefs: 0, telegramTasks: 0, totalTelegramTasks: 0 });
+  const [stats, setStats] = useState({ dailyAds: 0, totalRefs: 0, mainDone: 0, mainTotal: 0, partnerDone: 0, partnerTotal: 0 });
 
   const isTon = method === 'ton';
   const balance = Number(user?.balance || 0);
@@ -40,10 +38,8 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const feePercent = isTon ? Number(settings.ton_fee_percent || 2) : Number(settings.withdraw_fee_percent || 2);
   const maxWithdrawUsdt = isTon ? Number(settings.ton_max_usdt || 0.1) : Number(settings.max_withdraw_usdt || 0.1);
 
-  const dailyAdsReq = Number(settings.daily_ads_required || 10);
-  const dailyClicksReq = Number(settings.daily_clicks_required || 3);
+  const dailyAdsReq = Number(settings.daily_ads_required || 40);
   const totalRefReq = Number(settings.total_referrals_required || 2);
-  const withdrawAdsReq = Number(settings.withdraw_ads_required || 2);
 
   const rawUsdt = Number(amount || 0) * rate;
   const fee = feeFixed + (rawUsdt * feePercent / 100);
@@ -55,18 +51,12 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const setWalletAddress = isTon ? setTonAddress : setAptosAddress;
 
   useEffect(() => {
-    loadHistory();
-    loadSettings();
-    loadStats();
-    refreshTonPrice();
+    loadHistory(); loadSettings(); loadStats(); refreshTonPrice();
     const t = setInterval(refreshTonPrice, 60_000);
     return () => clearInterval(t);
   }, []);
 
-  async function refreshTonPrice() {
-    const p = await getTonPrice();
-    if (p > 0) setTonPrice(p);
-  }
+  async function refreshTonPrice() { const p = await getTonPrice(); if (p > 0) setTonPrice(p); }
 
   async function loadSettings() {
     const { data } = await supabase.from("app_settings").select("key, value");
@@ -78,20 +68,21 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   async function loadStats() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
-    const [adsRes, clicksRes, refsRes, tgTasksRes] = await Promise.all([
+    const [adsRes, refsRes, mainTasksRes, partnerTasksRes, completionsRes] = await Promise.all([
       supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
-      supabase.from("clicks").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
-      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("verified", true),
-      supabase.from("tasks").select("id").eq("active", true).eq("task_type", "one_click"),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).in("status", ["half_active", "active"]),
+      supabase.from("tasks").select("id").eq("active", true).eq("category", "main").eq("gives_reward", true),
+      supabase.from("tasks").select("id").eq("active", true).eq("category", "partner").eq("gives_reward", true),
+      supabase.from("task_completions").select("task_id").eq("user_id", userId),
     ]);
-    const tgIds = (tgTasksRes.data || []).map((t) => t.id);
-    const doneTg = tgIds.length
-      ? await supabase.from("task_submissions").select("id", { count: "exact", head: true }).eq("user_id", userId).in("task_id", tgIds).eq("status", "approved")
-      : { count: 0 };
+    const doneIds = new Set((completionsRes.data || []).map((c: any) => c.task_id));
+    const mainIds = (mainTasksRes.data || []).map((t: any) => t.id);
+    const partnerIds = (partnerTasksRes.data || []).map((t: any) => t.id);
     setStats({
-      dailyAds: adsRes.count || 0, dailyClicks: clicksRes.count || 0,
-      totalRefs: refsRes.count || 0, telegramTasks: doneTg.count || 0,
-      totalTelegramTasks: tgIds.length,
+      dailyAds: adsRes.count || 0,
+      totalRefs: refsRes.count || 0,
+      mainDone: mainIds.filter(id => doneIds.has(id)).length, mainTotal: mainIds.length,
+      partnerDone: partnerIds.filter(id => doneIds.has(id)).length, partnerTotal: partnerIds.length,
     });
   }
 
@@ -112,51 +103,44 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     if (!isTon && !aptosEnabled) { toast.error("USDT (Aptos) withdrawals disabled"); return; }
     if (!walletAddress.trim()) { toast.error("Enter wallet address"); return; }
     const minAmount = Number(settings.min_withdraw || 500);
-    if (Number(amount) < minAmount) { toast.error(`Minimum ${minAmount} Doggy`); return; }
+    if (Number(amount) < minAmount) { toast.error(`Minimum ${minAmount} Bunny`); return; }
     if (Number(amount) > balance) { toast.error("Insufficient balance"); return; }
-    if (Number(amount) > maxDoggy) { toast.error(`Max ${maxDoggy} Doggy (${maxWithdrawUsdt} USDT eq.)`); return; }
+    if (Number(amount) > maxDoggy) { toast.error(`Max ${maxDoggy} Bunny`); return; }
     if (hasPending) { toast.error("You have a pending withdrawal"); return; }
-    if (stats.dailyAds < withdrawAdsReq) { toast.error(`Watch at least ${withdrawAdsReq} ads first`); return; }
-    if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads`); return; }
-    if (stats.dailyClicks < dailyClicksReq) { toast.error(`Need ${dailyClicksReq} daily clicks`); return; }
-    if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} verified referrals`); return; }
-    if (stats.telegramTasks < stats.totalTelegramTasks) { toast.error("Complete all Telegram tasks first"); return; }
+    if (!user?.withdraw_unlocked) {
+      if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads`); return; }
+      if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} half-active/active referrals`); return; }
+      if (stats.mainDone < stats.mainTotal) { toast.error("Complete all Main tasks first"); return; }
+      if (stats.partnerDone < stats.partnerTotal) { toast.error("Complete all Partner tasks first"); return; }
+    }
 
     setLoading(true);
     try {
-      toast.info("📺 Watch a quick ad to submit your request...");
+      toast.info("📺 Watch a quick ad to submit...");
       await showMonetagAd();
       const result = await submitWithdrawal(userId, Number(amount), walletAddress, method);
-      if (result.success) {
-        toast.success("📤 Withdrawal request submitted!");
-        setAmount(""); loadHistory(); loadStats();
-      } else {
-        toast.error(result.message || "Withdrawal failed");
-      }
+      if (result.success) { toast.success("📤 Withdrawal submitted!"); setAmount(""); loadHistory(); loadStats(); }
+      else toast.error(result.message || "Withdrawal failed");
     } catch { toast.error("Withdrawal failed"); }
     setLoading(false);
   }
 
   const requirements = [
-    { label: "Daily Watch Ads", required: `${stats.dailyAds}/${dailyAdsReq}`, met: stats.dailyAds >= dailyAdsReq },
-    { label: "Daily Clicks", required: `${stats.dailyClicks}/${dailyClicksReq}`, met: stats.dailyClicks >= dailyClicksReq },
-    { label: "Total Referrals", required: `${stats.totalRefs}/${totalRefReq}`, met: stats.totalRefs >= totalRefReq },
-    { label: "All Telegram Tasks", required: `${stats.telegramTasks}/${stats.totalTelegramTasks}`, met: stats.telegramTasks >= stats.totalTelegramTasks },
-    { label: "Watch Ads (Pre-withdraw)", required: `${Math.min(stats.dailyAds, withdrawAdsReq)}/${withdrawAdsReq}`, met: stats.dailyAds >= withdrawAdsReq },
-    { label: "Minimum Amount", required: `${Number(settings.min_withdraw || 500)} 🦴`, met: Number(amount) >= Number(settings.min_withdraw || 500) },
+    { label: `Daily Ads`, required: `${stats.dailyAds}/${dailyAdsReq}`, met: stats.dailyAds >= dailyAdsReq },
+    { label: `Active Refs`, required: `${stats.totalRefs}/${totalRefReq}`, met: stats.totalRefs >= totalRefReq },
+    { label: `Main Tasks`, required: `${stats.mainDone}/${stats.mainTotal}`, met: stats.mainDone >= stats.mainTotal },
+    { label: `Partner Tasks`, required: `${stats.partnerDone}/${stats.partnerTotal}`, met: stats.partnerDone >= stats.partnerTotal },
+    { label: "Min Amount", required: `${Number(settings.min_withdraw || 500)} 🐰`, met: Number(amount) >= Number(settings.min_withdraw || 500) },
     { label: "Max Withdraw", required: `${maxWithdrawUsdt} USDT`, met: rawUsdt <= maxWithdrawUsdt },
-    { label: "No Pending Withdrawal", required: "✓", met: !hasPending },
+    { label: "No Pending", required: "✓", met: !hasPending },
   ];
 
-  const MethodCard = ({ id, label, sublabel, logo, enabled }: { id: Method; label: string; sublabel: string; logo: string; enabled: boolean }) => (
-    <button
-      type="button"
-      disabled={!enabled}
-      onClick={() => setMethod(id)}
+  const MethodCard = ({ id, label, sublabel, logo, enabled }: any) => (
+    <button type="button" disabled={!enabled} onClick={() => setMethod(id)}
       className={`flex-1 rounded-2xl p-3 border-2 transition-all ${
         method === id
-          ? 'border-[hsl(var(--doggy-gold))] bg-gradient-to-br from-amber-500/15 to-orange-500/10 scale-[1.02]'
-          : 'border-border bg-card opacity-90'
+          ? 'border-bunny-pink bg-gradient-to-br from-bunny-pink/20 to-bunny-lavender/10 scale-[1.02]'
+          : 'border-bunny-pink/15 bg-card opacity-90'
       } ${!enabled ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
     >
       <div className="flex flex-col items-center gap-1.5">
@@ -170,98 +154,88 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-[hsl(var(--doggy-gold))]/15 to-[hsl(var(--doggy-orange))]/15 rounded-2xl p-4 border border-[hsl(var(--doggy-gold))]/20"
-      >
-        <p className="font-display font-bold text-gradient-gold text-sm">💸 Withdraw Doggy</p>
-        <p className="text-xs text-muted-foreground mt-1">Choose your payout method below.</p>
-      </motion.div>
+      <div className="flex items-center justify-between">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30 flex-1 mr-2"
+        >
+          <p className="font-display font-bold text-gradient-bunny text-sm">💸 Withdraw Bunny</p>
+          <p className="text-[11px] text-muted-foreground">Choose USDT (Aptos) or TON</p>
+        </motion.div>
+        <GuideButton title="Withdraw Guide" steps={[
+          "Save your USDT or TON wallet address first.",
+          "Meet the requirements: 40 daily ads, 2 active refers, all Main & Partner tasks.",
+          `Minimum ${settings.min_withdraw || 500} 🐰 per request.`,
+          "Submit, watch a quick ad, then wait for admin approval.",
+          "After approval, payment is posted to @bunnyearnhubpay channel with TX hash.",
+        ]} />
+      </div>
 
-      {/* Balance */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-amber-500/20 via-card to-orange-500/10 rounded-2xl p-5 border border-amber-500/30 text-center"
+        className="bg-gradient-to-br from-bunny-pink/25 via-card to-bunny-lavender/15 rounded-2xl p-5 border border-bunny-pink/30 text-center"
       >
         <p className="text-xs text-muted-foreground">Available Balance</p>
-        <p className="text-3xl font-display font-bold text-gradient-gold">{balance.toFixed(0)} 🦴</p>
+        <p className="text-3xl font-display font-bold text-gradient-bunny">{balance.toFixed(0)} 🐰</p>
         <p className="text-sm text-muted-foreground">≈ ${(balance * rate).toFixed(4)} USDT</p>
       </motion.div>
 
-      {/* Method selector */}
       <div className="flex gap-2">
         <MethodCard id="usdt_aptos" label="USDT" sublabel="Aptos Network" logo={usdtLogo} enabled={aptosEnabled} />
         <MethodCard id="ton" label="TON" sublabel={tonPrice ? `$${tonPrice.toFixed(2)}/TON` : 'The Open Network'} logo={tonLogo} enabled={tonEnabled} />
       </div>
 
-      {/* Wallet */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-xl p-4 border border-border space-y-2"
-      >
+      <div className="bg-card rounded-xl p-4 border border-bunny-pink/15 space-y-2">
         <label className="text-xs text-muted-foreground flex items-center gap-2 font-bold">
           <img src={isTon ? tonLogo : aptosLogo} alt="" className="w-4 h-4 object-contain" />
           {isTon ? 'TON Wallet Address' : 'USDT Wallet (APTOS Network)'}
         </label>
         <div className="flex gap-2">
           <Input value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)}
-            placeholder={isTon ? 'EQ... or UQ...' : 'Enter Aptos address'} className="h-9 text-xs" />
-          <Button size="sm" variant="outline" className="h-9 text-xs border-amber-500/30" onClick={saveWallet}>Save</Button>
+            placeholder={isTon ? 'EQ... or UQ...' : 'Enter Aptos address (0x...)'} className="h-9 text-xs" />
+          <Button size="sm" variant="outline" className="h-9 text-xs border-bunny-pink/30" onClick={saveWallet}>Save</Button>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Amount */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-xl p-4 border border-border space-y-2"
-      >
-        <label className="text-xs text-muted-foreground font-bold">💰 Amount (Doggy) • Max: {maxDoggy}</label>
-        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
-          placeholder={`Min ${settings.min_withdraw || 500}`} className="h-10" />
+      <div className="bg-card rounded-xl p-4 border border-bunny-pink/15 space-y-2">
+        <label className="text-xs text-muted-foreground font-bold">💰 Amount (Bunny) • Max: {maxDoggy}</label>
+        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Min ${settings.min_withdraw || 500}`} className="h-10" />
         {Number(amount) > 0 && (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Gross: ${rawUsdt.toFixed(4)} USDT</p>
             <p className="text-xs text-destructive">Fee: -${fee.toFixed(4)} (${feeFixed} + {feePercent}%)</p>
             {isTon ? (
-              <>
-                <p className="text-xs text-[hsl(var(--doggy-green))] font-bold">Net: ${netUsdt.toFixed(4)} USDT</p>
-                <p className="text-xs text-blue-400 font-bold flex items-center gap-1">
-                  🪙 You receive: <b>{tonAmount.toFixed(6)} TON</b>
-                  {tonPrice > 0 && <span className="text-[10px] text-muted-foreground">@ ${tonPrice.toFixed(4)}</span>}
-                </p>
-              </>
+              <p className="text-xs text-blue-400 font-bold">🪙 Receive: <b>{tonAmount.toFixed(6)} TON</b> (~${netUsdt.toFixed(4)})</p>
             ) : (
-              <p className="text-xs text-[hsl(var(--doggy-green))] font-bold">You receive: ${netUsdt.toFixed(4)} USDT</p>
+              <p className="text-xs text-bunny-green font-bold">Receive: ${netUsdt.toFixed(4)} USDT</p>
             )}
           </div>
         )}
-      </motion.div>
+      </div>
 
-      {/* Requirements */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-amber-500/5 to-card rounded-xl p-4 border border-amber-500/20"
-      >
+      <div className="bg-gradient-to-br from-bunny-pink/10 to-card rounded-xl p-4 border border-bunny-pink/25">
         <p className="text-xs font-bold mb-2 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3 text-amber-400" /> Requirements
+          <AlertCircle className="w-3 h-3 text-bunny-pink-light" /> Requirements
         </p>
         <div className="space-y-1.5">
           {requirements.map((req) => (
             <div key={req.label} className="flex justify-between text-xs">
               <span className="text-muted-foreground">{req.label}</span>
-              <span className={`font-bold ${req.met ? 'text-[hsl(var(--doggy-green))]' : 'text-destructive'}`}>
+              <span className={`font-bold ${req.met ? 'text-bunny-green' : 'text-destructive'}`}>
                 {req.required} {req.met ? '✅' : '❌'}
               </span>
             </div>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       <motion.div whileTap={{ scale: 0.98 }}>
         <Button onClick={handleWithdraw} disabled={loading || hasPending}
-          className="w-full h-14 bg-gradient-gold text-primary-foreground font-bold text-lg rounded-2xl glow-gold"
+          className="w-full h-14 bg-gradient-bunny text-primary-foreground font-bold text-lg rounded-2xl glow-pink"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Wallet className="w-5 h-5 mr-2" />}
           Withdraw via {isTon ? 'TON' : 'USDT (Aptos)'}
         </Button>
       </motion.div>
 
-      {/* History */}
       {history.length > 0 && (
         <div>
           <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Withdraw History</p>
@@ -274,17 +248,17 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
               : `https://explorer.aptoslabs.com/txn/${w.tx_hash}?network=mainnet`) : null;
             return (
               <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                className="flex items-center justify-between bg-card rounded-xl p-3 border border-border mb-2"
+                className="flex items-center justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <img src={wIsTon ? tonLogo : usdtLogo} alt="" className="w-4 h-4 object-contain" />
-                    <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🦴</p>
+                    <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🐰</p>
                     <span className="text-[10px] text-muted-foreground">{wIsTon ? 'TON' : 'USDT'}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${wFee.toFixed(4)}</p>
-                  <p className="text-[10px] text-[hsl(var(--doggy-green))] font-bold">
-                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} TON (~$${wNet.toFixed(4)})` : `$${wNet.toFixed(4)} USDT`}
+                  <p className="text-[10px] text-bunny-green font-bold">
+                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} TON` : `$${wNet.toFixed(4)} USDT`}
                   </p>
                   <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</p>
                   {explorer && (
@@ -294,8 +268,8 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
                   )}
                 </div>
                 <span className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-full ${
-                  w.status === 'approved' ? 'bg-[hsl(var(--doggy-green))]/20 text-[hsl(var(--doggy-green))]' :
-                  w.status === 'rejected' ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'
+                  w.status === 'approved' ? 'bg-bunny-green/20 text-bunny-green' :
+                  w.status === 'rejected' ? 'bg-destructive/20 text-destructive' : 'bg-bunny-pink/20 text-bunny-pink-light'
                 }`}>
                   {w.status === 'approved' && <><Check className="w-3 h-3" /> Approved</>}
                   {w.status === 'rejected' && <><X className="w-3 h-3" /> Rejected</>}
