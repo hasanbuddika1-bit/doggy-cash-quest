@@ -1,38 +1,96 @@
+# 🐰 Bunny Earn Hub — Full Rebrand & Restructure
 
-# Doggy Cash Major Update Plan
+## 1. Brand & Design
+- Rename app to **Bunny Earn Hub** (💸🐰 Bunny Earn Hub 🏆✨) everywhere (title, manifest, loading, header, bot welcome, channel messages)
+- Upload provided logo as Lovable Asset, use across LoadingScreen, HomeTab header, RewardPopup
+- New color palette (matching logo): pastel pink `#F9A8D4`, lavender `#C084FC`, gold `#F59E0B`, deep purple `#581C87`
+- Update `index.css` semantic tokens, `tailwind.config.ts`, Fredoka heading kept, bunny-themed gradients
+- Currency rename: 🦴 Doggy → 🐰 Bunny (display only; conversion 100 Bunny = 0.01 USDT preserved)
+- New background (soft purple/pink gradient with sparkles), animated bunny accents
 
-## Phase 1: Core Systems
-1. **Adsgram Ad Integration** — Integrate Adsgram SDK (blocks 27102 for auto-play, 27106 for Watch Ads tab). Auto-play ad 3s after app open, then every 25-50s. Watch Ads: if ad closed before 30-34s, show error popup (like screenshot), no reward.
-2. **Per-Ad Reward Values** — Each of the 10 ad slots gets its own configurable reward value (admin panel setting).
-3. **Daily Reset at 12:00:00** — All daily counters (ads watched, clicks) reset at midnight.
+## 2. New Database (fresh schema)
+Create a completely new schema (drop+rebuild via migration) with rebranded tables:
+- `users` (telegram_id, username, balance, ton_address, aptos_address, withdraw_unlocked, banned, ip, joined_at)
+- `tasks` (id, category: `main`|`partner`|`other`, title, url, bot_username, reward, active, verify_method)
+- `task_completions` (user_id, task_id, completed_at)
+- `referrals` (referrer_id, referred_id, status: `pending`|`half_active`|`active`, joined_at, activated_at)
+  - pending = just joined
+  - half_active = referred completed all main tasks → referrer gets 50 🐰
+  - active = referred completed all main+partner → referrer gets +100 🐰 and 10% commission unlocked
+- `ad_watches` (user_id, network: `adsgram`|`monetag`|`adexium`, slot_index, watched_at) — one slot per 24h
+- `withdrawals` (user_id, amount_bunny, usdt, network, address, status, tx_hash, fee)
+- `weekly_challenge_claims` (user_id, challenge_key, week_start)
+- `app_settings` (key/value for ad rewards, mins, channel ids)
+- `reward_codes`, `code_redemptions`
 
-## Phase 2: Fraud Prevention
-4. **IP-based Duplicate Detection** — Store user IP on registration. If same IP creates another account, auto-ban the new one, keep the first. Send Telegram notify to admin. Show ban reason to user.
-5. **VPN Detection** — If VPN detected during registration, show warning to turn off VPN.
-6. **Same-IP Referral Block** — Don't give referral bonus if same IP.
-7. **Banned User Lockout** — Banned users see error screen with reason, can't do anything.
+GRANTs + RLS on every table.
 
-## Phase 3: Task System Split
-8. **Two Task Types** — Split tasks into "Admin Approve" (current system with image proof) and "One-Click Telegram Tasks" (join channel → verify via bot → auto reward).
-9. **Admin Panel** — Separate task creation for both types.
+## 3. Tabs Restructure
+Bottom nav: **Home · Tasks · Earn · Withdraw · Profile** (remove "Other Mini Apps", remove "App Stats")
 
-## Phase 4: Withdrawal Updates
-10. **Withdrawal Requirements** — Must actually check: daily ads watched (10), daily clicks (3), total referrals (2). These must work with real data.
-11. **Watch 2 Ads Before Withdraw** — Require watching 2 ads before submitting withdrawal request.
-12. **Max Withdraw 0.1 USDT** — Cap withdrawal at 0.1 USDT equivalent.
-13. **Withdrawal Fee** — 0.01 USDT + 2% fee. Show fee-deducted amount in history and notifications.
-14. **Withdraw History** — Show complete history with fees.
+### Tasks Tab (NEW)
+Sub-tabs: **Main Tasks** · **Partner Tasks** · **Other Tasks**
+- Main & Partner: Telegram-based, verified through the bot (`getChatMember` for channels, deep-link join verify for bots)
+- "Other" assessment task = ONLY `Start Mini Bot` task, **no reward**, just enables notifications (deep-link to bot start)
+- Each task: open link → "Verify" → bot checks membership → marks complete
 
-## Phase 5: Referral Fix
-15. **Direct Mini App Open** — Refer link opens mini app directly, detect referrer from start param.
+### Earn Tab
+- Click-to-earn (kept)
+- Reward code redemption (kept)
+- Weekly Challenges (kept, but referrals use **active** count)
+- Remove task list from here
 
-## Phase 6: UI Additions
-16. **Stats Counting** — Show real counts for refers, ads, clicks, tasks on home/profile.
-17. **"Our Other Mini Apps"** section on Home — Free Dogs Pay + Free TRX Pay links.
+### Watch Ads Tab (NEW LAYOUT)
+3 network cards (with network logos):
+1. **Adsgram AI** → 20 ad slots × 5 🐰 (24h cooldown each)
+2. **Monetag** → 15 ad slots × 5 🐰 (placeholder block id)
+3. **Adexium** → 5 ad slots × 5 🐰 (placeholder block id)
+- Tap card → opens slot grid → Watch button per slot
+- Remove existing Adsgram block IDs (placeholder constants), auto-ad Monetag → placeholder
+- Show network logo on each card
 
-## Database Changes Needed
-- Add `ip_address` column to `users` table
-- Add `reward_value` column to `ad_watches` or use per-slot settings
-- Add task type column (`admin_approve` / `one_click`) to `tasks` table
-- Add `telegram_task_channel` column to `tasks` for one-click tasks
-- Add withdrawal fee settings to `app_settings`
+### Profile Tab (kept, dual wallet kept)
+
+## 4. Referral System (rewritten)
+- Join via referral link → `status=pending` (shows in history as "Pending")
+- Referred user completes ALL main tasks → status=`half_active`, referrer +50 🐰
+- Referred user completes ALL main+partner tasks → status=`active`, referrer +100 🐰, 10% commission begins
+- Refer history: shows Pending / Half-Active / Active badge per row
+
+## 5. Withdraw Requirements (updated)
+- Min 500 🐰
+- **Daily 40 ads watched**
+- **2+ half_active or active referrals**
+- All main tasks completed
+- All partner tasks completed
+- Owner can unlock per-user (existing `withdraw_unlocked` flag)
+- Weekly challenge "refers" counter uses active+half_active
+
+## 6. Bot & Channels
+- New bot: `@Bunnyearnbot`, token `8292003406:AAEszzLXg0bEU86LXFO4DgU_BJW2f54gpfo` → store as `TELEGRAM_BOT_TOKEN` secret (replace existing)
+- Community channel: `https://t.me/bunnyearnhub`
+- Payment channel: `https://t.me/bunnyearnhubpay` (replace `@bluetonpayment` in withdrawal posts)
+- Bot verifies channel join + bot start for Main/Partner tasks
+- Bot sends notifications when user starts via "Start Mini Bot" task
+
+## 7. Per-tab Guide
+Add a small `?` Guide button (top-right) on every tab → opens dialog with Sinhala instructions for that tab.
+
+## 8. Admin Panel
+- Update branding only (keep all existing user activity / balance audit / withdraw approve / unlock features)
+- Update channel ID in approve flow
+
+## 9. Files Affected (high-level)
+- New: `src/assets/bunny-logo.png.asset.json`, `src/assets/networks/{adsgram,monetag,adexium}.png.asset.json`
+- New: `src/components/tabs/TasksTab.tsx`, `src/components/GuideButton.tsx`
+- Rewritten: `WatchAdsTab.tsx`, `EarnTab.tsx`, `BottomNav.tsx`, `HomeTab.tsx`, `LoadingScreen.tsx`, `AnimatedBackground.tsx`, `Index.tsx`, `index.css`, `tailwind.config.ts`, `index.html`
+- New migration: full fresh schema (drops old tables)
+- Edge functions updated: `telegram-bot`, `process-withdrawal`, `verify-channel`, `process-click`
+
+## ⚠️ Confirm before I start
+1. **Drop all existing user data** (balances, withdrawals, referrals) for the fresh DB? Or migrate existing users to new schema?
+2. Old bot `@Doggycash1bot` — disable webhook / leave as-is?
+3. Watch-ads cooldown: confirm **24h per slot** (current is 1h per slot in old build)
+4. "Start Mini Bot" task — should it be **one-time** (disappears after click) or always visible?
+
+This is ~15–20 file changes + 1 large migration + secret update. Once you confirm the 4 questions, I'll ship it all in one go.
