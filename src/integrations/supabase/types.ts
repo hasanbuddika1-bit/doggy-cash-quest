@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           earned: number
           id: string
+          network: string
           user_id: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           created_at?: string
           earned?: number
           id?: string
+          network?: string
           user_id: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           created_at?: string
           earned?: number
           id?: string
+          network?: string
           user_id?: string
         }
         Relationships: [
@@ -176,35 +179,47 @@ export type Database = {
       }
       referrals: {
         Row: {
+          activated_at: string | null
           commission_earned: number
           created_at: string
           id: string
+          main_reward_paid: boolean
+          partner_reward_paid: boolean
           referee_id: string
           referrer_id: string
           reward_amount: number
           reward_claimed: boolean
+          status: string
           verified: boolean
           verified_at: string | null
         }
         Insert: {
+          activated_at?: string | null
           commission_earned?: number
           created_at?: string
           id?: string
+          main_reward_paid?: boolean
+          partner_reward_paid?: boolean
           referee_id: string
           referrer_id: string
           reward_amount?: number
           reward_claimed?: boolean
+          status?: string
           verified?: boolean
           verified_at?: string | null
         }
         Update: {
+          activated_at?: string | null
           commission_earned?: number
           created_at?: string
           id?: string
+          main_reward_paid?: boolean
+          partner_reward_paid?: boolean
           referee_id?: string
           referrer_id?: string
           reward_amount?: number
           reward_claimed?: boolean
+          status?: string
           verified?: boolean
           verified_at?: string | null
         }
@@ -294,6 +309,27 @@ export type Database = {
         }
         Relationships: []
       }
+      task_completions: {
+        Row: {
+          id: string
+          task_id: string
+          user_id: string
+          verified_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          user_id: string
+          verified_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          user_id?: string
+          verified_at?: string
+        }
+        Relationships: []
+      }
       task_submissions: {
         Row: {
           admin_note: string | null
@@ -345,42 +381,57 @@ export type Database = {
       tasks: {
         Row: {
           active: boolean
+          category: string
           created_at: string
           description: string | null
+          gives_reward: boolean
           id: string
           link: string | null
           requires_image: boolean
+          sort_order: number
           task_type: string
+          telegram_bot_username: string | null
           telegram_channel: string | null
           title: string
           updated_at: string
           value: number
+          verify_method: string
         }
         Insert: {
           active?: boolean
+          category?: string
           created_at?: string
           description?: string | null
+          gives_reward?: boolean
           id?: string
           link?: string | null
           requires_image?: boolean
+          sort_order?: number
           task_type?: string
+          telegram_bot_username?: string | null
           telegram_channel?: string | null
           title: string
           updated_at?: string
           value?: number
+          verify_method?: string
         }
         Update: {
           active?: boolean
+          category?: string
           created_at?: string
           description?: string | null
+          gives_reward?: boolean
           id?: string
           link?: string | null
           requires_image?: boolean
+          sort_order?: number
           task_type?: string
+          telegram_bot_username?: string | null
           telegram_channel?: string | null
           title?: string
           updated_at?: string
           value?: number
+          verify_method?: string
         }
         Relationships: []
       }
@@ -431,6 +482,7 @@ export type Database = {
       users: {
         Row: {
           access_tasks_completed: boolean
+          aptos_address: string | null
           balance: number
           banned: boolean
           country: string | null
@@ -438,6 +490,7 @@ export type Database = {
           first_name: string | null
           id: string
           ip_address: string | null
+          notifications_enabled: boolean
           photo_url: string | null
           referrer_id: string | null
           suspended_at: string | null
@@ -452,6 +505,7 @@ export type Database = {
         }
         Insert: {
           access_tasks_completed?: boolean
+          aptos_address?: string | null
           balance?: number
           banned?: boolean
           country?: string | null
@@ -459,6 +513,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           ip_address?: string | null
+          notifications_enabled?: boolean
           photo_url?: string | null
           referrer_id?: string | null
           suspended_at?: string | null
@@ -473,6 +528,7 @@ export type Database = {
         }
         Update: {
           access_tasks_completed?: boolean
+          aptos_address?: string | null
           balance?: number
           banned?: boolean
           country?: string | null
@@ -480,6 +536,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           ip_address?: string | null
+          notifications_enabled?: boolean
           photo_url?: string | null
           referrer_id?: string | null
           suspended_at?: string | null

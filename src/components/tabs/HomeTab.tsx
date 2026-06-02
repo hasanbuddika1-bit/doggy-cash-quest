@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Users, Wifi, CalendarPlus, Coins, Tv, ExternalLink } from "lucide-react";
+import { Tv, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getTelegramWebApp } from "@/lib/telegram";
-import logo from "@/assets/doggy-cash-logo.png";
+import bunnyLogo from "@/assets/bunny-logo.png.asset.json";
+import { GuideButton } from "@/components/GuideButton";
 
 interface HomeTabProps {
   user: any;
-  appStats: { totalUsers: number; onlineUsers: number; todayJoins: number; totalPaid: number };
   onNavigate?: (tab: string) => void;
 }
 
-export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
+export function HomeTab({ user, onNavigate }: HomeTabProps) {
   const balance = Number(user?.balance || 0);
   const usdtValue = (balance * 0.0001).toFixed(4);
   const userId = user?.id;
@@ -24,91 +24,78 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
     const [adsRes, clicksRes, refsRes, withdrawRes] = await Promise.all([
       supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId),
       supabase.from("clicks").select("id", { count: "exact", head: true }).eq("user_id", userId),
-      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("verified", true),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).in("status", ["half_active", "active"]),
       supabase.from("withdrawals").select("usdt_amount").eq("user_id", userId).eq("status", "approved"),
     ]);
-    const totalWithdrawn = (withdrawRes.data || []).reduce((sum, w) => sum + Number(w.usdt_amount), 0);
     setStats({
       totalAds: adsRes.count || 0,
       totalClicks: clicksRes.count || 0,
       totalRefs: refsRes.count || 0,
-      totalWithdrawn,
+      totalWithdrawn: (withdrawRes.data || []).reduce((s, w) => s + Number(w.usdt_amount), 0),
     });
   }, [userId]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const userStats = [
-    { icon: "💰", label: "Total Earn", value: balance.toFixed(0), color: "from-amber-500/20 to-orange-500/10", borderColor: "border-amber-500/30" },
-    { icon: "💸", label: "Withdrawn", value: `$${stats.totalWithdrawn.toFixed(2)}`, color: "from-red-500/20 to-pink-500/10", borderColor: "border-red-500/30" },
-    { icon: "📺", label: "Total Ads", value: String(stats.totalAds), color: "from-blue-500/20 to-indigo-500/10", borderColor: "border-blue-500/30" },
-    { icon: "👆", label: "Total Clicks", value: String(stats.totalClicks), color: "from-green-500/20 to-emerald-500/10", borderColor: "border-green-500/30" },
+    { icon: "💰", label: "Balance",   value: balance.toFixed(0),                color: "from-bunny-pink/25 to-bunny-lavender/10", borderColor: "border-bunny-pink/30" },
+    { icon: "💸", label: "Withdrawn", value: `$${stats.totalWithdrawn.toFixed(2)}`, color: "from-rose-500/25 to-pink-500/10", borderColor: "border-rose-400/30" },
+    { icon: "📺", label: "Total Ads", value: String(stats.totalAds),            color: "from-cyan-500/25 to-blue-500/10",  borderColor: "border-cyan-400/30" },
+    { icon: "👆", label: "Clicks",    value: String(stats.totalClicks),         color: "from-emerald-500/25 to-green-500/10", borderColor: "border-emerald-400/30" },
   ];
-
-  const appStatCards = [
-    { icon: <Users className="w-4 h-4 text-blue-400" />, label: "Total Users", value: appStats.totalUsers, bg: "from-blue-500/15 to-blue-500/5" },
-    { icon: <Wifi className="w-4 h-4 text-green-400" />, label: "Online", value: appStats.onlineUsers, bg: "from-green-500/15 to-green-500/5" },
-    { icon: <CalendarPlus className="w-4 h-4 text-purple-400" />, label: "Today", value: appStats.todayJoins, bg: "from-purple-500/15 to-purple-500/5" },
-    { icon: <Coins className="w-4 h-4 text-amber-400" />, label: "Paid", value: `$${Number(appStats.totalPaid).toFixed(3)}`, bg: "from-amber-500/15 to-amber-500/5" },
-  ];
-
-  const otherApps = [
-    { name: "Puppy Profit 🐶", link: "https://t.me/Puppyprofitbot?startapp", color: "from-amber-500/20 to-orange-500/10", border: "border-amber-500/30", emoji: "🐶" },
-  ];
-
-  function openLink(url: string) {
-    const wa = getTelegramWebApp();
-    if (wa) { wa.openTelegramLink(url); } else { window.open(url, "_blank"); }
-  }
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-5">
-      {/* Welcome Guide */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-[hsl(var(--doggy-gold))]/15 to-[hsl(var(--doggy-orange))]/15 rounded-2xl p-4 border border-[hsl(var(--doggy-gold))]/20"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[hsl(var(--doggy-gold))]">
-            {user?.photo_url ? (
-              <img src={user.photo_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gradient-gold flex items-center justify-center text-lg font-bold text-primary-foreground">
-                {(user?.first_name || 'U')[0]}
-              </div>
-            )}
+      <div className="flex items-center justify-between">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl p-4 border border-bunny-pink/30 flex-1 mr-2"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-bunny-pink glow-pink flex-none">
+              {user?.photo_url ? (
+                <img src={user.photo_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-bunny flex items-center justify-center text-lg font-bold text-primary-foreground">
+                  {(user?.first_name || 'U')[0]}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-display font-bold text-gradient-bunny truncate">Hi, {user?.first_name || user?.username || 'Friend'}! 🐰</p>
+              <p className="text-xs text-muted-foreground truncate">@{user?.username || 'anonymous'}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-display font-bold text-gradient-gold">Welcome, {user?.first_name || user?.username || 'User'}! 🐶</p>
-            <p className="text-xs text-muted-foreground">@{user?.username || 'anonymous'}</p>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">Earn Doggy by completing tasks, clicking links, and inviting friends! 🦴</p>
-      </motion.div>
+        </motion.div>
+        <GuideButton title="Home Guide" steps={[
+          "Watch your balance and stats here.",
+          "Tap 📺 Watch Ads → earn Bunny from 3 ad networks.",
+          "Visit Tasks tab → complete Main/Partner missions.",
+          "Earn tab → daily challenges, clicks, referrals & reward codes.",
+          "Withdraw tab → cash out as USDT or TON.",
+        ]} />
+      </div>
 
       {/* Balance Card */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1 }}
-        className="bg-gradient-to-br from-[hsl(var(--doggy-gold))]/20 via-card to-[hsl(var(--doggy-orange))]/10 rounded-2xl p-5 border border-[hsl(var(--doggy-gold))]/30 glow-gold relative overflow-hidden"
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}
+        className="bg-gradient-to-br from-bunny-pink/25 via-card to-bunny-lavender/15 rounded-3xl p-5 border border-bunny-pink/30 glow-pink relative overflow-hidden"
       >
-        <div className="absolute top-2 right-2 w-16 h-16 opacity-20">
-          <img src={logo} alt="" className="w-full h-full" />
+        <div className="absolute -top-3 -right-3 w-24 h-24 opacity-30 animate-hop">
+          <img src={bunnyLogo.url} alt="" className="w-full h-full object-contain" />
         </div>
         <p className="text-xs text-muted-foreground mb-1">💰 Your Balance</p>
-        <motion.p key={balance} initial={{ scale: 1.2 }} animate={{ scale: 1 }} className="text-4xl font-display font-bold text-gradient-gold">
-          {balance.toFixed(0)} 🦴
+        <motion.p key={balance} initial={{ scale: 1.2 }} animate={{ scale: 1 }}
+          className="text-4xl font-display font-bold text-gradient-bunny"
+        >
+          {balance.toFixed(0)} 🐰
         </motion.p>
         <p className="text-sm text-muted-foreground mt-1">≈ ${usdtValue} USDT</p>
       </motion.div>
 
-      {/* Watch Ads Button */}
+      {/* CTA */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} whileTap={{ scale: 0.98 }}>
         <Button
           onClick={() => onNavigate?.("watchads")}
-          className="w-full h-14 bg-gradient-to-r from-[hsl(var(--doggy-gold))] to-[hsl(var(--doggy-orange))] text-primary-foreground font-display font-bold text-lg rounded-2xl shadow-lg border-0"
+          className="w-full h-14 bg-gradient-bunny text-primary-foreground font-display font-bold text-lg rounded-2xl shadow-lg border-0 glow-pink"
         >
           <Tv className="w-5 h-5 mr-2" />
           📺 Watch Ads & Earn
@@ -120,11 +107,8 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
         <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Your Stats</p>
         <div className="grid grid-cols-2 gap-2">
           {userStats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.05 }}
+            <motion.div key={stat.label}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.05 }}
               whileHover={{ scale: 1.02 }}
               className={`bg-gradient-to-br ${stat.color} rounded-xl p-3 border ${stat.borderColor}`}
             >
@@ -138,56 +122,27 @@ export function HomeTab({ user, appStats, onNavigate }: HomeTabProps) {
         </div>
       </div>
 
-      {/* App Stats */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-2 font-bold">🌐 App Stats</p>
-        <div className="grid grid-cols-4 gap-2">
-          {appStatCards.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + i * 0.05 }}
-              whileHover={{ scale: 1.05 }}
-              className={`bg-gradient-to-b ${stat.bg} rounded-xl p-2 border border-border/50 text-center`}
+      {/* Community */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+        className="bg-gradient-to-r from-bunny-lavender/20 to-bunny-pink/15 rounded-2xl p-4 border border-bunny-pink/25"
+      >
+        <p className="text-xs font-bold text-gradient-bunny mb-2">🌸 Join the Hub</p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "Community", url: "https://t.me/bunnyearnhub", emoji: "📢" },
+            { label: "Payments",  url: "https://t.me/bunnyearnhubpay", emoji: "💳" },
+          ].map((c) => (
+            <button key={c.url} onClick={() => {
+              const wa = getTelegramWebApp();
+              if (wa) wa.openTelegramLink(c.url); else window.open(c.url, "_blank");
+            }}
+              className="bg-card/60 rounded-xl py-2 px-2 border border-bunny-pink/20 flex items-center justify-center gap-1 text-xs font-bold hover:scale-[1.02] transition"
             >
-              <div className="mb-1 flex justify-center">{stat.icon}</div>
-              <p className="font-bold text-xs">{stat.value}</p>
-              <p className="text-[9px] text-muted-foreground">{stat.label}</p>
-            </motion.div>
+              <span>{c.emoji}</span> {c.label} <ExternalLink className="w-3 h-3 text-muted-foreground" />
+            </button>
           ))}
         </div>
-      </div>
-
-      {/* Other Mini Apps */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-2 font-bold">🎮 Our Other Mini Apps</p>
-        <div className="space-y-2">
-          {otherApps.map((app, i) => (
-            <motion.div
-              key={app.name}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 + i * 0.05 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => openLink(app.link)}
-              className={`bg-gradient-to-r ${app.color} rounded-xl p-4 border ${app.border} flex items-center justify-between cursor-pointer`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <span className="text-xl">{(app as any).emoji || "🎮"}</span>
-                </div>
-                <div>
-                  <p className="font-display font-bold text-sm">{app.name}</p>
-                  <p className="text-[10px] text-muted-foreground">Tap to open →</p>
-                </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,74 +1,66 @@
 import { useMemo } from "react";
-import bgImage from "@/assets/doggy-bg.png";
 
 export function AnimatedBackground() {
-  const coins = useMemo(() => 
-    Array.from({ length: 6 }, (_, i) => ({
+  const sparkles = useMemo(() =>
+    Array.from({ length: 18 }, (_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 10}s`,
-      duration: `${8 + Math.random() * 6}s`,
-      size: 16 + Math.random() * 16,
+      top: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 4}s`,
+      size: 8 + Math.random() * 14,
     })), []
   );
 
-  const paws = useMemo(() =>
-    Array.from({ length: 4 }, (_, i) => ({
+  const floaters = useMemo(() =>
+    Array.from({ length: 7 }, (_, i) => ({
       id: i,
-      left: `${10 + Math.random() * 80}%`,
-      top: `${10 + Math.random() * 80}%`,
-      delay: `${Math.random() * 5}s`,
+      left: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 8}s`,
+      duration: `${10 + Math.random() * 8}s`,
+      size: 18 + Math.random() * 14,
+      emoji: ["💵", "🪙", "🐰", "✨", "🌸"][i % 5],
     })), []
   );
 
   return (
     <>
-      {/* Branded background image */}
+      {/* Deep gradient base */}
       <div
         className="fixed inset-0 z-0 pointer-events-none"
         style={{
-          backgroundImage: `url(${bgImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center top',
-          backgroundRepeat: 'no-repeat',
-          opacity: 0.18,
+          background:
+            "radial-gradient(circle at 50% -10%, hsl(var(--bunny-pink) / 0.25), transparent 55%)," +
+            "radial-gradient(circle at 0% 50%, hsl(var(--bunny-lavender) / 0.18), transparent 55%)," +
+            "radial-gradient(circle at 100% 80%, hsl(var(--bunny-gold) / 0.12), transparent 50%)," +
+            "linear-gradient(180deg, hsl(var(--bunny-purple-deep)) 0%, hsl(var(--background)) 70%)",
         }}
       />
-      {/* Warm gold gradient overlay so content stays readable */}
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{
-          background: 'linear-gradient(180deg, hsl(var(--background) / 0.55) 0%, hsl(var(--background) / 0.85) 60%, hsl(var(--background) / 0.95) 100%)',
-        }}
-      />
+
+      {/* Sparkles */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        {coins.map((coin) => (
+        {sparkles.map((s) => (
           <div
-            key={coin.id}
-            className="absolute animate-float-up"
-            style={{
-              left: coin.left,
-              bottom: '-30px',
-              '--delay': coin.delay,
-              '--duration': coin.duration,
-              animationDelay: coin.delay,
-              animationDuration: coin.duration,
-            } as React.CSSProperties}
+            key={s.id}
+            className="absolute animate-sparkle"
+            style={{ left: s.left, top: s.top, fontSize: s.size, animationDelay: s.delay }}
           >
-            <span style={{ fontSize: coin.size }} className="opacity-25">🪙</span>
+            ✨
           </div>
         ))}
-        {paws.map((paw) => (
+        {floaters.map((f) => (
           <div
-            key={`paw-${paw.id}`}
-            className="absolute animate-paw-float opacity-10"
+            key={`f-${f.id}`}
+            className="absolute animate-float-up"
             style={{
-              left: paw.left,
-              top: paw.top,
-              animationDelay: paw.delay,
+              left: f.left,
+              bottom: "-30px",
+              ['--delay' as any]: f.delay,
+              ['--duration' as any]: f.duration,
+              animationDelay: f.delay,
+              animationDuration: f.duration,
             }}
           >
-            🐾
+            <span style={{ fontSize: f.size }} className="opacity-25">{f.emoji}</span>
           </div>
         ))}
       </div>

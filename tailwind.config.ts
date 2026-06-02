@@ -5,11 +5,7 @@ export default {
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: { "2xl": "1400px" },
-    },
+    container: { center: true, padding: "2rem", screens: { "2xl": "1400px" } },
     extend: {
       fontFamily: {
         display: ['Fredoka', 'sans-serif'],
@@ -37,6 +33,17 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        bunny: {
+          pink: "hsl(var(--bunny-pink))",
+          "pink-light": "hsl(var(--bunny-pink-light))",
+          lavender: "hsl(var(--bunny-lavender))",
+          purple: "hsl(var(--bunny-purple))",
+          gold: "hsl(var(--bunny-gold))",
+          "gold-soft": "hsl(var(--bunny-gold-soft))",
+          green: "hsl(var(--bunny-green))",
+          dark: "hsl(var(--bunny-dark))",
+          card: "hsl(var(--bunny-card))",
         },
         doggy: {
           gold: "hsl(var(--doggy-gold))",

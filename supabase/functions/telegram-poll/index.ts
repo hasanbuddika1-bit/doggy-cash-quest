@@ -4,18 +4,22 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
-const MINI_APP_URL = 'https://t.me/Doggycash1bot?startapp=home';
-const COMMUNITY_URL = 'https://t.me/doggycash12';
-const START_PHOTO = 'https://doggy-cash-quest.lovable.app/welcome.jpg';
+const MINI_APP_URL = 'https://t.me/Bunnyearnbot?startapp=home';
+const COMMUNITY_URL = 'https://t.me/bunnyearnhub';
+const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
 async function tg(method: string, body: any, lovableKey: string, tgKey: string) {
+  if (BUNNY_BOT_TOKEN) {
+    const r = await fetch(`https://api.telegram.org/bot${BUNNY_BOT_TOKEN}/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const json = await r.json();
+    if (!json?.ok) console.error(`[tg ${method}] failed:`, JSON.stringify(json));
+    return json;
+  }
   const res = await fetch(`${GATEWAY_URL}/${method}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${lovableKey}`,
-      'X-Connection-Api-Key': tgKey,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Authorization': `Bearer ${lovableKey}`, 'X-Connection-Api-Key': tgKey, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -24,39 +28,24 @@ async function tg(method: string, body: any, lovableKey: string, tgKey: string) 
 }
 
 async function handleStart(chatId: number, firstName: string, lovableKey: string, tgKey: string) {
-  const caption = `🐶 <b>Welcome to Doggy Cash, ${firstName || 'Friend'}!</b> 💰\n\n🦴 Earn Doggy by watching ads, completing tasks & referring friends.\n💵 100 Doggy = 0.01 USDT\n\n👇 Tap below to start earning!`;
+  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 Earn Bunny by watching ads, completing tasks & referring friends.\n💵 100 Bunny = 0.01 USDT\n\n👇 Tap below to start earning!`;
   const reply_markup = {
     inline_keyboard: [
-      [{ text: '💰 Earn Doggy', url: MINI_APP_URL }],
+      [{ text: '🐰 Open Mini App', url: MINI_APP_URL }],
       [{ text: '📢 Community', url: COMMUNITY_URL }],
     ],
   };
-  const photoResp = await tg('sendPhoto', {
-    chat_id: chatId,
-    photo: START_PHOTO,
-    caption,
-    parse_mode: 'HTML',
-    reply_markup,
-  }, lovableKey, tgKey);
-  if (!photoResp?.ok) {
-    await tg('sendMessage', {
-      chat_id: chatId,
-      text: caption,
-      parse_mode: 'HTML',
-      reply_markup,
-    }, lovableKey, tgKey);
-  }
+  await tg('sendMessage', { chat_id: chatId, text: caption, parse_mode: 'HTML', reply_markup }, lovableKey, tgKey);
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const startTime = Date.now();
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
-  const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY')!;
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY') || '';
+  const TELEGRAM_API_KEY = Deno.env.get('TELEGRAM_API_KEY') || '';
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  const { data: state, error: stateErr } = await supabase
-    .from('telegram_bot_state').select('update_offset').eq('id', 1).single();
+  const { data: state, error: stateErr } = await supabase.from('telegram_bot_state').select('update_offset').eq('id', 1).single();
   if (stateErr) return new Response(JSON.stringify({ error: stateErr.message }), { status: 500, headers: corsHeaders });
   let currentOffset: number = state.update_offset;
   let totalProcessed = 0;
@@ -67,12 +56,7 @@ Deno.serve(async (req) => {
     const timeout = Math.min(50, Math.floor(remaining / 1000) - 5);
     if (timeout < 1) break;
 
-    const resp = await tg('getUpdates', {
-      offset: currentOffset,
-      timeout,
-      allowed_updates: ['message'],
-    }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
-
+    const resp = await tg('getUpdates', { offset: currentOffset, timeout, allowed_updates: ['message'] }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
     const updates = resp?.result ?? [];
     if (!updates.length) continue;
 
@@ -90,8 +74,7 @@ Deno.serve(async (req) => {
 
     totalProcessed += updates.length;
     const newOffset = Math.max(...updates.map((u: any) => u.update_id)) + 1;
-    await supabase.from('telegram_bot_state')
-      .update({ update_offset: newOffset, updated_at: new Date().toISOString() }).eq('id', 1);
+    await supabase.from('telegram_bot_state').update({ update_offset: newOffset, updated_at: new Date().toISOString() }).eq('id', 1);
     currentOffset = newOffset;
   }
 
