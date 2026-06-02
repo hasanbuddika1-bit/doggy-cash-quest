@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { verifyChannel, claimWelcomeBonus } from "@/lib/api";
 import { getCurrentUser, getTelegramUser, getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
-import bunnyLogo from "@/assets/bunny-logo.png.asset.json";
+import bunnyLogo from "@/assets/bunny-logo.png";
 
 interface Channel {
   id: string;
