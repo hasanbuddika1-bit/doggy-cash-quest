@@ -4,7 +4,7 @@ import { Tv, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getTelegramWebApp } from "@/lib/telegram";
-import bunnyLogo from "@/assets/bunny-logo.png.asset.json";
+import bunnyLogo from "@/assets/bunny-logo.png";
 import { GuideButton } from "@/components/GuideButton";
 
 interface HomeTabProps {
