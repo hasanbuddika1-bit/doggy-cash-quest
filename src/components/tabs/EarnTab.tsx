@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { processClick, claimRewardCode } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
