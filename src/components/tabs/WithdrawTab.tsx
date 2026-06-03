@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet, getTonPrice } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import tonLogo from "@/assets/ton-logo.png";
@@ -117,7 +117,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     setLoading(true);
     try {
       toast.info("📺 Watch a quick ad to submit...");
-      await showMonetagAd();
+      await showRandomAd();
       const result = await submitWithdrawal(userId, Number(amount), walletAddress, method);
       if (result.success) { toast.success("📤 Withdrawal submitted!"); setAmount(""); loadHistory(); loadStats(); }
       else toast.error(result.message || "Withdrawal failed");

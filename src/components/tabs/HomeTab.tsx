@@ -80,7 +80,7 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
         className="bg-gradient-to-br from-bunny-pink/25 via-card to-bunny-lavender/15 rounded-3xl p-5 border border-bunny-pink/30 glow-pink relative overflow-hidden"
       >
         <div className="absolute -top-3 -right-3 w-24 h-24 opacity-30 animate-hop">
-          <img src={bunnyLogo.url} alt="" className="w-full h-full object-contain" />
+          <img src={bunnyLogo} alt="" className="w-full h-full object-contain" />
         </div>
         <p className="text-xs text-muted-foreground mb-1">💰 Your Balance</p>
         <motion.p key={balance} initial={{ scale: 1.2 }} animate={{ scale: 1 }}

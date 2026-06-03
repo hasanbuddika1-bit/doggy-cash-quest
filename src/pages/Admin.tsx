@@ -462,6 +462,9 @@ function TasksTab({ taskType }: { taskType: string }) {
   const [link, setLink] = useState("");
   const [value, setValue] = useState("10");
   const [telegramChannel, setTelegramChannel] = useState("");
+  const [telegramBot, setTelegramBot] = useState("");
+  const [category, setCategory] = useState<"main" | "partner" | "other">("main");
+  const [verifyMethod, setVerifyMethod] = useState<"telegram_channel" | "telegram_bot" | "link">("telegram_channel");
 
   useEffect(() => { loadTasks(); }, [taskType]);
 
@@ -472,14 +475,18 @@ function TasksTab({ taskType }: { taskType: string }) {
 
   async function createTask() {
     if (!title.trim()) return;
-    const insertData: any = { title, description, link, value: Number(value), task_type: taskType };
+    const insertData: any = {
+      title, description, link, value: Number(value),
+      task_type: taskType, category, verify_method: verifyMethod,
+      requires_image: false, gives_reward: true,
+    };
     if (taskType === 'one_click') {
-      insertData.telegram_channel = telegramChannel.trim().replace('@', '');
-      insertData.requires_image = false;
+      if (verifyMethod === 'telegram_channel') insertData.telegram_channel = telegramChannel.trim().replace('@', '');
+      if (verifyMethod === 'telegram_bot') insertData.telegram_bot_username = telegramBot.trim().replace('@', '');
     }
     await adminAction("create_task", { task_data: insertData });
-    toast.success("Task created!");
-    setTitle(""); setDescription(""); setLink(""); setValue("10"); setTelegramChannel("");
+    toast.success(`✅ ${category.toUpperCase()} task created!`);
+    setTitle(""); setDescription(""); setLink(""); setValue("10"); setTelegramChannel(""); setTelegramBot("");
     loadTasks();
   }
 
@@ -487,16 +494,37 @@ function TasksTab({ taskType }: { taskType: string }) {
     <div className="space-y-3 mt-3">
       <div className="bg-card rounded-xl p-3 border border-border space-y-2">
         <p className="text-sm font-semibold">{taskType === 'one_click' ? '📢 Create Telegram Task' : '📋 Create Admin Task'}</p>
+
+        {taskType === 'one_click' && (
+          <>
+            <div className="flex gap-2">
+              {(["main", "partner", "other"] as const).map((c) => (
+                <Button key={c} size="sm" type="button"
+                  className={`flex-1 h-8 text-xs ${category === c ? 'bg-gradient-bunny text-primary-foreground' : 'bg-muted'}`}
+                  onClick={() => setCategory(c)}>
+                  {c === 'main' ? '⭐ Main' : c === 'partner' ? '🤝 Partner' : '📌 Other'}
+                </Button>
+              ))}
+            </div>
+            <select value={verifyMethod} onChange={(e) => setVerifyMethod(e.target.value as any)}
+              className="w-full h-8 text-xs bg-background border border-border rounded px-2">
+              <option value="telegram_channel">Telegram Channel (auto-verify)</option>
+              <option value="telegram_bot">Telegram Bot (trust-verify)</option>
+              <option value="link">Plain Link (trust-verify)</option>
+            </select>
+          </>
+        )}
+
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-8 text-xs" />
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="text-xs min-h-[60px]" />
-        {taskType === 'one_click' ? (
-          <>
-            <Input value={telegramChannel} onChange={(e) => setTelegramChannel(e.target.value)} placeholder="Telegram channel username (without @)" className="h-8 text-xs" />
-            <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Channel link (https://t.me/...)" className="h-8 text-xs" />
-          </>
-        ) : (
-          <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Task link" className="h-8 text-xs" />
+
+        {taskType === 'one_click' && verifyMethod === 'telegram_channel' && (
+          <Input value={telegramChannel} onChange={(e) => setTelegramChannel(e.target.value)} placeholder="Channel username (without @)" className="h-8 text-xs" />
         )}
+        {taskType === 'one_click' && verifyMethod === 'telegram_bot' && (
+          <Input value={telegramBot} onChange={(e) => setTelegramBot(e.target.value)} placeholder="Bot username (without @)" className="h-8 text-xs" />
+        )}
+        <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Link (https://t.me/... or other)" className="h-8 text-xs" />
         <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Bunny value" className="h-8 text-xs" />
         <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={createTask}>Create Task</Button>
       </div>
@@ -505,8 +533,9 @@ function TasksTab({ taskType }: { taskType: string }) {
           <div className="flex justify-between">
             <div>
               <p className="text-sm font-semibold">{t.title}</p>
-              <p className="text-xs text-primary">+{t.value} 🐰</p>
+              <p className="text-xs text-primary">+{t.value} 🐰 • <span className="text-bunny-gold-soft">{t.category || 'main'}</span></p>
               {t.telegram_channel && <p className="text-[10px] text-muted-foreground">@{t.telegram_channel}</p>}
+              {t.telegram_bot_username && <p className="text-[10px] text-muted-foreground">🤖 @{t.telegram_bot_username}</p>}
             </div>
             <div className="flex gap-1">
               <Button size="sm" variant={t.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import { AccessTasks } from "@/components/AccessTasks";
+import { NotificationGate } from "@/components/NotificationGate";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { BottomNav } from "@/components/BottomNav";
 import { HomeTab } from "@/components/tabs/HomeTab";
@@ -12,8 +12,9 @@ import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
+import { playAutoAd } from "@/lib/ads";
 
-type AppState = "loading" | "access_tasks" | "main" | "banned";
+type AppState = "loading" | "main" | "banned";
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("loading");
@@ -21,10 +22,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [userId, setUserId] = useState("");
   const [user, setUser] = useState<any>(null);
-  const [userCountry, setUserCountry] = useState<string | null>(null);
-
-  // Auto-ad disabled until new Monetag block id is configured (placeholder)
-  const playAutoAd = useCallback(() => { /* placeholder — new block id will be added later */ }, []);
+  const [_userCountry, setUserCountry] = useState<string | null>(null);
 
   const initApp = useCallback(async () => {
     try {
@@ -59,16 +57,13 @@ const Index = () => {
       if (result.user.banned) { setProgress(100); setTimeout(() => setAppState("banned"), 500); return; }
 
       setProgress(100);
-      setTimeout(() => {
-        if (result.user.access_tasks_completed && result.user.welcome_bonus_claimed) { setAppState("main"); playAutoAd(); }
-        else setAppState("access_tasks");
-      }, 800);
+      setTimeout(() => { setAppState("main"); playAutoAd(); }, 700);
     } catch (err) {
       console.error("Init error:", err);
       setProgress(100);
-      setTimeout(() => setAppState("access_tasks"), 800);
+      setTimeout(() => setAppState("main"), 700);
     }
-  }, [playAutoAd]);
+  }, []);
 
   useEffect(() => { initApp(); }, [initApp]);
 
@@ -77,8 +72,6 @@ const Index = () => {
     const { data } = await supabase.from("users").select("*").eq("id", userId).single();
     if (data) setUser(data);
   }, [userId]);
-
-  function handleAccessComplete() { refreshUser(); setAppState("main"); playAutoAd(); }
 
   if (appState === "loading") return <LoadingScreen progress={progress} />;
 
@@ -89,13 +82,11 @@ const Index = () => {
           <span className="text-6xl block mb-4">🚫</span>
           <h2 className="text-xl font-display font-bold text-destructive mb-2">Account Suspended</h2>
           <p className="text-sm text-muted-foreground mb-4">Your account has been suspended due to a violation of our terms.</p>
-          <p className="text-xs text-muted-foreground">Reason: Multiple accounts or VPN usage detected. Please use only one account without VPN.</p>
+          <p className="text-xs text-muted-foreground">Reason: Multiple accounts or VPN usage detected.</p>
         </div>
       </div>
     );
   }
-
-  if (appState === "access_tasks") return <AccessTasks userId={userId} userCountry={userCountry} onComplete={handleAccessComplete} />;
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -111,6 +102,10 @@ const Index = () => {
         </AnimatePresence>
       </div>
       <BottomNav activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); refreshUser(); }} />
+
+      {user && !user.notifications_enabled && (
+        <NotificationGate userId={userId} telegramId={user.telegram_id} onAllow={refreshUser} />
+      )}
     </div>
   );
 };

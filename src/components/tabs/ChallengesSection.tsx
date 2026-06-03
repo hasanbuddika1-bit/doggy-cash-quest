@@ -4,7 +4,7 @@ import { Trophy, Loader2, Check, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { claimWeeklyChallenge } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 
@@ -73,7 +73,7 @@ export function ChallengesSection({ userId }: Props) {
     setBusy(id);
     try {
       toast.info("📺 Watch a quick ad to claim...");
-      await showMonetagAd();
+      await showRandomAd();
       const r = await claimWeeklyChallenge(userId, ck, tier);
       if (r.success) { setReward({ show: true, amount: r.amount || rewardAmt }); load(); }
       else toast.error(r.message || "Claim failed");

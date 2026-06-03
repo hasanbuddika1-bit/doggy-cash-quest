@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { processClick, claimRewardCode } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
@@ -258,7 +258,7 @@ function RewardCodeSection({ userId }: { userId: string }) {
     setLoading(true);
     try {
       toast.info("📺 Watch a quick ad to claim...");
-      await showMonetagAd();
+      await showRandomAd();
       const r = await claimRewardCode(userId, code.trim());
       if (r.success) { setReward({ show: true, amount: r.amount }); setCode(""); load(); }
       else toast.error(r.message || "Invalid code");

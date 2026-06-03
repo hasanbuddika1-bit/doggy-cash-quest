@@ -97,7 +97,7 @@ export function AccessTasks({ userId, userCountry, onComplete }: AccessTasksProp
     <div className="min-h-screen bg-background p-4 pb-8 relative">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
         <div className="w-28 h-28 mx-auto mb-3 glow-pink">
-          <img src={bunnyLogo.url} alt="Bunny Earn Hub" className="w-full h-full object-contain" />
+          <img src={bunnyLogo} alt="Bunny Earn Hub" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-2xl font-display font-bold text-gradient-bunny">💸🐰 Bunny Earn Hub 🏆</h1>
         <p className="text-muted-foreground text-sm mt-1">Complete these tasks to get started ✨</p>

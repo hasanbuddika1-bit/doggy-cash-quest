@@ -30,7 +30,7 @@ export function LoadingScreen({ progress }: LoadingScreenProps) {
         className="relative z-10"
       >
         <div className="w-40 h-40 glow-pink rounded-full">
-          <img src={bunnyLogo.url} alt="Bunny Earn Hub" className="w-full h-full object-contain drop-shadow-2xl" />
+          <img src={bunnyLogo} alt="Bunny Earn Hub" className="w-full h-full object-contain drop-shadow-2xl" />
         </div>
         {[0, 60, 120, 180, 240, 300].map((deg, i) => (
           <motion.div
