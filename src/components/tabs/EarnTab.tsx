@@ -258,7 +258,7 @@ function RewardCodeSection({ userId }: { userId: string }) {
     setLoading(true);
     try {
       toast.info("📺 Watch a quick ad to claim...");
-      await showMonetagAd();
+      await showRandomAd();
       const r = await claimRewardCode(userId, code.trim());
       if (r.success) { setReward({ show: true, amount: r.amount }); setCode(""); load(); }
       else toast.error(r.message || "Invalid code");
