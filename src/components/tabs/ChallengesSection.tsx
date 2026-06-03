@@ -73,7 +73,7 @@ export function ChallengesSection({ userId }: Props) {
     setBusy(id);
     try {
       toast.info("📺 Watch a quick ad to claim...");
-      await showMonetagAd();
+      await showRandomAd();
       const r = await claimWeeklyChallenge(userId, ck, tier);
       if (r.success) { setReward({ show: true, amount: r.amount || rewardAmt }); load(); }
       else toast.error(r.message || "Claim failed");
