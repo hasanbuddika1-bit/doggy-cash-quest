@@ -6,21 +6,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { processAdReward } from "@/lib/api";
 import { RewardPopup } from "@/components/RewardPopup";
 import { GuideButton } from "@/components/GuideButton";
+import {
+  showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd,
+  AdClosedEarlyError,
+} from "@/lib/ads";
 import { toast } from "sonner";
 import adsgramLogo from "@/assets/logo-adsgram.png";
 import monetagLogo from "@/assets/logo-monetag.png";
 import adexiumLogo from "@/assets/logo-adexium.png";
+import gigapubLogo from "@/assets/logo-gigapub.png";
 
 interface Props { userId: string }
 
 const COOLDOWN_HOURS = 24;
-const REWARD_PER_AD = 5;
 
-const NETWORKS = [
-  { key: "adsgram",  name: "Adsgram AI",   slots: 20, logo: adsgramLogo, blockId: "",    color: "from-cyan-500/30 to-blue-500/15", border: "border-cyan-400/40" },
-  { key: "monetag",  name: "Monetag",      slots: 15, logo: monetagLogo, blockId: "",    color: "from-green-500/30 to-emerald-500/15", border: "border-green-400/40" },
-  { key: "adexium",  name: "Adexium",      slots: 5,  logo: adexiumLogo, blockId: "",    color: "from-fuchsia-500/30 to-purple-500/15", border: "border-fuchsia-400/40" },
-] as const;
+type NetworkKey = "adsgram" | "monetag" | "adexium" | "gigapub";
+
+const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; logo: string; color: string; border: string; hint: string }[] = [
+  { key: "adsgram", name: "Adsgram AI", slots: 20, reward: 5, logo: adsgramLogo,
+    color: "from-cyan-500/30 to-blue-500/15", border: "border-cyan-400/40",
+    hint: "Odd slots: 17s ad • Even slots: 33s ad" },
+  { key: "monetag", name: "Monetag", slots: 15, reward: 5, logo: monetagLogo,
+    color: "from-green-500/30 to-emerald-500/15", border: "border-green-400/40",
+    hint: "Watch full ad to earn" },
+  { key: "adexium", name: "Adexium", slots: 5, reward: 5, logo: adexiumLogo,
+    color: "from-fuchsia-500/30 to-purple-500/15", border: "border-fuchsia-400/40",
+    hint: "Interstitial widget" },
+  { key: "gigapub", name: "GigaPub", slots: 10, reward: 3, logo: gigapubLogo,
+    color: "from-orange-500/30 to-red-500/15", border: "border-orange-400/40",
+    hint: "10 ads • 3 🐰 each" },
+];
 
 type Network = typeof NETWORKS[number];
 
@@ -34,13 +49,14 @@ export function WatchAdsTab({ userId }: Props) {
           className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30 flex-1 mr-2"
         >
           <p className="font-display font-bold text-gradient-bunny text-sm">📺 Watch Ads & Earn</p>
-          <p className="text-[11px] text-muted-foreground">Pick a network → watch ads → earn 🐰</p>
+          <p className="text-[11px] text-muted-foreground">Pick a network → watch → earn 🐰</p>
         </motion.div>
         <GuideButton
           title="Watch Ads Guide"
           steps={[
-            "Tap an ad network card (Adsgram / Monetag / Adexium).",
-            `Watch each ad slot — earn ${REWARD_PER_AD} 🐰 per ad.`,
+            "Tap an ad network card to open its slots.",
+            "Adsgram: odd slots show a 17s ad, even slots show a 33s ad.",
+            "Monetag, Adexium, GigaPub: watch the full ad — closing early gives no reward.",
             `Each slot resets every ${COOLDOWN_HOURS} hours.`,
             "Daily 40 ad views are required to withdraw.",
           ]}
@@ -54,7 +70,7 @@ export function WatchAdsTab({ userId }: Props) {
           >
             {NETWORKS.map((n, i) => (
               <motion.button key={n.key}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
                 onClick={() => setSelected(n)}
                 className={`bg-gradient-to-br ${n.color} rounded-2xl p-5 border-2 ${n.border} text-left relative overflow-hidden`}
@@ -66,12 +82,12 @@ export function WatchAdsTab({ userId }: Props) {
                   </div>
                   <div className="flex-1">
                     <p className="font-display font-bold text-lg">{n.name}</p>
-                    <p className="text-xs text-muted-foreground">{n.slots} ads • {REWARD_PER_AD} 🐰 each</p>
-                    <p className="text-[10px] text-bunny-gold-soft mt-0.5">↻ {COOLDOWN_HOURS}h cooldown per ad</p>
+                    <p className="text-xs text-muted-foreground">{n.slots} ads • {n.reward} 🐰 each</p>
+                    <p className="text-[10px] text-bunny-gold-soft mt-0.5">{n.hint}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground">Max</p>
-                    <p className="text-xl font-display font-bold text-gradient-gold">{n.slots * REWARD_PER_AD} 🐰</p>
+                    <p className="text-xl font-display font-bold text-gradient-gold">{n.slots * n.reward} 🐰</p>
                   </div>
                 </div>
               </motion.button>
@@ -83,6 +99,16 @@ export function WatchAdsTab({ userId }: Props) {
       </AnimatePresence>
     </div>
   );
+}
+
+async function playForNetwork(network: NetworkKey, adIndex: number): Promise<number> {
+  if (network === "adsgram") {
+    // Odd slot → block 1 (17s), even slot → block 2 (33s)
+    return adIndex % 2 === 1 ? showAdsgramBlock1() : showAdsgramBlock2();
+  }
+  if (network === "monetag") return showMonetagAd();
+  if (network === "adexium") return showAdexiumAd();
+  return showGigapubAd();
 }
 
 function NetworkAds({ network, userId, onBack }: { network: Network; userId: string; onBack: () => void }) {
@@ -121,37 +147,14 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
   async function handleWatch(adIndex: number) {
     if (!canWatch(adIndex)) { toast.error("Wait until cooldown ends!"); return; }
     setWatchingAd(adIndex);
-
-    // Network is placeholder — auto-grant reward after short delay for now
-    if (!network.blockId) {
-      setTimeout(async () => {
-        await grantReward(adIndex);
-      }, 1500);
-      return;
-    }
-
     try {
-      const Adsgram = (window as any).Adsgram;
-      const ctrl = Adsgram?.init?.({ blockId: network.blockId, debug: false });
-      if (!ctrl) { setShowAdError(true); setWatchingAd(null); return; }
-      const start = Date.now();
-      try { await ctrl.show(); } catch { /* user closed early */ }
-      const secs = (Date.now() - start) / 1000;
-      if (secs < 25) { setShowAdError(true); setWatchingAd(null); return; }
-      await grantReward(adIndex, secs);
-    } catch {
-      toast.error("Failed to load ad");
-      setWatchingAd(null);
-    }
-  }
-
-  async function grantReward(adIndex: number, secs = 30) {
-    try {
-      await processAdReward(userId, adIndex, REWARD_PER_AD, secs, network.key);
-      setReward({ show: true, amount: REWARD_PER_AD });
+      const secs = await playForNetwork(network.key, adIndex);
+      await processAdReward(userId, adIndex, network.reward, secs, network.key);
+      setReward({ show: true, amount: network.reward });
       load();
-    } catch {
-      toast.error("Failed to credit reward");
+    } catch (e) {
+      if (e instanceof AdClosedEarlyError) setShowAdError(true);
+      else toast.error("Failed to load ad");
     }
     setWatchingAd(null);
   }
@@ -170,7 +173,7 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
               <AlertCircle className="w-7 h-7 text-red-500" />
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">No Carrots Found!</h3>
-            <p className="text-sm text-gray-600 mb-4">👆 Tap the ad shown, start the advertised bot, then come back! 🥕</p>
+            <p className="text-sm text-gray-600 mb-4">👆 Watch the full ad — closing early gives no reward. Try again!</p>
             <Button onClick={() => setShowAdError(false)}
               className="w-full h-11 rounded-2xl bg-gradient-bunny text-primary-foreground font-bold">
               TRY AGAIN
@@ -195,6 +198,7 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
           const available = canWatch(adIndex);
           const cd = cooldownSec(adIndex);
           const watching = watchingAd === adIndex;
+          const dur = network.key === "adsgram" ? (adIndex % 2 === 1 ? "17s" : "33s") : null;
           return (
             <motion.div key={adIndex}
               initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }}
@@ -208,8 +212,8 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
                     AD
                   </div>
                   <div>
-                    <p className="font-display font-bold text-sm">Ad #{adIndex}</p>
-                    <p className="text-xs font-bold text-gradient-bunny">🐰 {REWARD_PER_AD}</p>
+                    <p className="font-display font-bold text-sm">Ad #{adIndex} {dur && <span className="text-[10px] text-bunny-gold-soft">• {dur}</span>}</p>
+                    <p className="text-xs font-bold text-gradient-bunny">🐰 {network.reward}</p>
                   </div>
                 </div>
                 {!available ? (
