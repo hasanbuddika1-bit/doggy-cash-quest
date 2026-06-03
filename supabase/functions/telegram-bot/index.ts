@@ -423,8 +423,8 @@ Deno.serve(async (req) => {
       if (user.banned) throw new Error('Account suspended');
       const adIndex = Number(ad_index);
       const earnedAmount = Math.max(1, Math.min(100, Number(earned || 5)));
-      const netName = ['adsgram', 'monetag', 'adexium'].includes(String(network)) ? String(network) : 'adsgram';
-      const maxSlot = netName === 'adsgram' ? 20 : netName === 'monetag' ? 15 : 5;
+      const netName = ['adsgram', 'monetag', 'adexium', 'gigapub'].includes(String(network)) ? String(network) : 'adsgram';
+      const maxSlot = netName === 'adsgram' ? 20 : netName === 'monetag' ? 15 : netName === 'gigapub' ? 10 : 5;
       if (!Number.isInteger(adIndex) || adIndex < 1 || adIndex > maxSlot) throw new Error('Invalid ad slot');
       if (Number(watch_seconds || 0) < MIN_AD_SECONDS) throw new Error('Ad was closed early');
 
