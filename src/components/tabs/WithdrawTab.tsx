@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet, getTonPrice } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import tonLogo from "@/assets/ton-logo.png";
