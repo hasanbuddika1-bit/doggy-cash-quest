@@ -4,7 +4,7 @@ import { Trophy, Loader2, Check, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { claimWeeklyChallenge } from "@/lib/api";
-import { showMonetagAd } from "@/lib/monetag";
+import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 
