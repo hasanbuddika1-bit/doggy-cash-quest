@@ -76,6 +76,10 @@ export async function verifyTaskCompletion(userId: string, taskId: string, teleg
   return callEdgeFunction("telegram-bot", { action: "verify_task", user_id: userId, task_id: taskId, telegram_id: telegramId });
 }
 
+export async function playGame(userId: string, game: 'coin' | 'mines' | 'crash', bet: number, choice: any) {
+  return callEdgeFunction("telegram-bot", { action: "play_game", user_id: userId, game, bet, choice });
+}
+
 export async function adminLogin(username: string, password: string) {
   return callEdgeFunction("telegram-bot", { action: "admin_login", username, password });
 }
