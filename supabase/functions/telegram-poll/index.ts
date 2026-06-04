@@ -5,6 +5,7 @@ const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
 const MINI_APP_URL = 'https://t.me/Bunnyearnbot?startapp=home';
+const MINI_APP_WEB = 'https://doggy-cash-quest.lovable.app';
 const COMMUNITY_URL = 'https://t.me/bunnyearnhub';
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
@@ -27,15 +28,33 @@ async function tg(method: string, body: any, lovableKey: string, tgKey: string) 
   return json;
 }
 
-async function handleStart(chatId: number, firstName: string, lovableKey: string, tgKey: string) {
-  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 Earn Bunny by watching ads, completing tasks & referring friends.\n💵 100 Bunny = 0.01 USDT\n\n👇 Tap below to start earning!`;
-  const reply_markup = {
+function welcomeKeyboard() {
+  return {
     inline_keyboard: [
-      [{ text: '🐰 Open Mini App', url: MINI_APP_URL }],
+      [{ text: '🐰 Earn Bunny — Open Mini App', url: MINI_APP_URL }],
       [{ text: '📢 Community', url: COMMUNITY_URL }],
     ],
   };
-  await tg('sendMessage', { chat_id: chatId, text: caption, parse_mode: 'HTML', reply_markup }, lovableKey, tgKey);
+}
+
+async function handleStart(chatId: number, firstName: string, payload: string, lovableKey: string, tgKey: string, supabase: any) {
+  // Handle notification-enable payload: /start notify_<tg_id>
+  if (payload.startsWith('notify_')) {
+    const tgId = Number(payload.slice('notify_'.length));
+    if (tgId && tgId === chatId) {
+      await supabase.from('users').update({ notifications_enabled: true }).eq('telegram_id', tgId);
+    }
+    await tg('sendMessage', {
+      chat_id: chatId,
+      text: `🔔 <b>Notifications enabled, ${firstName || 'Friend'}!</b>\n\nYou'll now receive payment, referral & reward updates here.\n\n🐰 Tap below to continue earning!`,
+      parse_mode: 'HTML',
+      reply_markup: welcomeKeyboard(),
+    }, lovableKey, tgKey);
+    return;
+  }
+
+  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 Earn Bunny by watching ads, completing tasks & referring friends.\n💵 100 Bunny = 0.01 USDT\n\n👇 Tap below to start earning!`;
+  await tg('sendMessage', { chat_id: chatId, text: caption, parse_mode: 'HTML', reply_markup: welcomeKeyboard() }, lovableKey, tgKey);
 }
 
 Deno.serve(async (req) => {
@@ -67,7 +86,8 @@ Deno.serve(async (req) => {
       const chatId = msg.chat?.id;
       const firstName = msg.from?.first_name || '';
       if (text.startsWith('/start') && chatId) {
-        try { await handleStart(chatId, firstName, LOVABLE_API_KEY, TELEGRAM_API_KEY); }
+        const payload = text.slice(6).trim(); // after "/start"
+        try { await handleStart(chatId, firstName, payload, LOVABLE_API_KEY, TELEGRAM_API_KEY, supabase); }
         catch (e) { console.error('handleStart error', e); }
       }
     }
@@ -78,7 +98,7 @@ Deno.serve(async (req) => {
     currentOffset = newOffset;
   }
 
-  return new Response(JSON.stringify({ ok: true, processed: totalProcessed, offset: currentOffset }), {
+  return new Response(JSON.stringify({ ok: true, processed: totalProcessed, offset: currentOffset, mini_app: MINI_APP_WEB }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });
