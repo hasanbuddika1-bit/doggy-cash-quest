@@ -177,6 +177,39 @@ export type Database = {
           },
         ]
       }
+      game_plays: {
+        Row: {
+          bet: number
+          created_at: string
+          game: string
+          id: string
+          meta: Json | null
+          payout: number
+          user_id: string
+          won: boolean
+        }
+        Insert: {
+          bet: number
+          created_at?: string
+          game: string
+          id?: string
+          meta?: Json | null
+          payout?: number
+          user_id: string
+          won?: boolean
+        }
+        Update: {
+          bet?: number
+          created_at?: string
+          game?: string
+          id?: string
+          meta?: Json | null
+          payout?: number
+          user_id?: string
+          won?: boolean
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           activated_at: string | null

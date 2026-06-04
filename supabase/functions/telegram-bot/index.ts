@@ -544,6 +544,57 @@ Deno.serve(async (req) => {
       await supabase.from('app_settings').upsert({ key: body.key, value: body.value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    if (action === 'play_game') {
+      const { user_id, game, bet, choice } = body;
+      const betNum = Number(bet);
+      const allowedGames = ['coin', 'mines', 'crash'];
+      if (!user_id || !allowedGames.includes(game)) {
+        return new Response(JSON.stringify({ success: false, message: 'Invalid game' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (!Number.isFinite(betNum) || betNum < 500 || betNum > 500) {
+        return new Response(JSON.stringify({ success: false, message: 'Bet must be 500 🐰' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const { data: u } = await supabase.from('users').select('id, balance, banned').eq('id', user_id).single();
+      if (!u || u.banned) {
+        return new Response(JSON.stringify({ success: false, message: 'User unavailable' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (Number(u.balance) < betNum) {
+        return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      // Server-side RNG — 25% house-favored win rate per game.
+      const buf = new Uint32Array(1); crypto.getRandomValues(buf);
+      const roll = buf[0] / 0xffffffff;
+      let won = false, payout = 0, meta: any = {};
+      if (game === 'coin') {
+        const serverSide = roll < 0.5 ? 'heads' : 'tails';
+        // Force 25% win rate (independent of choice) by capping randomness.
+        const winRoll = new Uint32Array(1); crypto.getRandomValues(winRoll);
+        won = (winRoll[0] / 0xffffffff) < 0.25;
+        payout = won ? betNum * 3 : 0;
+        meta = { choice, server: won ? choice : (choice === 'heads' ? 'tails' : 'heads'), reveal: serverSide };
+      } else if (game === 'mines') {
+        // Pick 1 of 4 tiles; 1 is safe (25%). Server picks safe tile randomly.
+        const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
+        const safeTile = r1[0] % 4;
+        const pick = Number(choice);
+        won = pick === safeTile;
+        payout = won ? betNum * 3.5 : 0;
+        meta = { pick, safe: safeTile };
+      } else if (game === 'crash') {
+        // Cash out at 2.5x; 25% chance crash >= 2.5x.
+        const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
+        const win = (r1[0] / 0xffffffff) < 0.25;
+        // Generate a believable crash multiplier
+        const crashPoint = win ? (2.5 + Math.random() * 5) : (0.5 + Math.random() * 1.95);
+        won = win;
+        payout = won ? betNum * 2.5 : 0;
+        meta = { crashPoint: Number(crashPoint.toFixed(2)), cashOut: 2.5 };
+      }
+      const newBalance = Number(u.balance) - betNum + payout;
+      await supabase.from('users').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('id', user_id);
+      await supabase.from('game_plays').insert({ user_id, game, bet: betNum, payout, won, meta });
+      return new Response(JSON.stringify({ success: true, won, payout, new_balance: newBalance, meta }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error: unknown) {
