@@ -10,12 +10,14 @@ import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 import { ChallengesSection } from "@/components/tabs/ChallengesSection";
+import { GamesSection } from "@/components/tabs/GamesSection";
 import { GuideButton } from "@/components/GuideButton";
 
 interface EarnTabProps { userId: string; telegramId: number; }
 
 const SUB_TABS = [
   { key: "Challenges",  icon: "🏆", color: "from-bunny-gold to-amber-500" },
+  { key: "Games",       icon: "🎮", color: "from-bunny-pink to-bunny-gold" },
   { key: "Clicks",      icon: "👆", color: "from-bunny-green to-emerald-600" },
   { key: "Refer",       icon: "👥", color: "from-bunny-pink to-bunny-lavender" },
   { key: "Reward Code", icon: "🎁", color: "from-bunny-lavender to-bunny-pink" },
