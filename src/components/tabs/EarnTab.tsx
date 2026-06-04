@@ -65,6 +65,7 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
           {subTab === "Challenges" && <ChallengesSection userId={userId} />}
+          {subTab === "Games"      && <GamesSection userId={userId} />}
           {subTab === "Clicks"     && <ClicksSection userId={userId} />}
           {subTab === "Refer"      && <ReferSection userId={userId} telegramId={telegramId} />}
           {subTab === "Reward Code"&& <RewardCodeSection userId={userId} />}
