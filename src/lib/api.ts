@@ -80,6 +80,26 @@ export async function playGame(userId: string, game: 'coin' | 'mines' | 'crash',
   return callEdgeFunction("telegram-bot", { action: "play_game", user_id: userId, game, bet, choice });
 }
 
+export async function enableNotifications(userId: string, telegramId: number) {
+  return callEdgeFunction("telegram-bot", { action: "enable_notifications", user_id: userId, telegram_id: telegramId });
+}
+
+export async function getHistory(userId: string) {
+  return callEdgeFunction("telegram-bot", { action: "get_history", user_id: userId });
+}
+
+export async function getShortLinks(userId: string) {
+  return callEdgeFunction("telegram-bot", { action: "get_short_links", user_id: userId });
+}
+
+export async function startShortLink(userId: string, shortLinkId: string) {
+  return callEdgeFunction("telegram-bot", { action: "start_short_link", user_id: userId, short_link_id: shortLinkId });
+}
+
+export async function claimShortLink(userId: string, shortLinkId: string, rewardToken: string) {
+  return callEdgeFunction("telegram-bot", { action: "claim_short_link", user_id: userId, short_link_id: shortLinkId, reward_token: rewardToken });
+}
+
 export async function adminLogin(username: string, password: string) {
   return callEdgeFunction("telegram-bot", { action: "admin_login", username, password });
 }

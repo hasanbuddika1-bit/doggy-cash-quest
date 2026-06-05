@@ -25,6 +25,31 @@ async function sendTelegram(method: string, body: any, lovableKey?: string, tele
   return res.json();
 }
 
+async function addHistory(supabase: any, userId: string, type: string, amount: number, title: string, description?: string, meta: any = {}) {
+  await supabase.from('reward_history').insert({ user_id: userId, type, amount, title, description, meta });
+}
+
+async function estimateEarned(supabase: any, userId: string) {
+  const [ads, clicks, codes, weekly, games, shorts, refs] = await Promise.all([
+    supabase.from('ad_watches').select('earned').eq('user_id', userId),
+    supabase.from('clicks').select('earned').eq('user_id', userId),
+    supabase.from('reward_claims').select('amount').eq('user_id', userId),
+    supabase.from('weekly_challenge_claims').select('amount').eq('user_id', userId),
+    supabase.from('game_plays').select('bet, payout').eq('user_id', userId),
+    supabase.from('short_link_claims').select('amount').eq('user_id', userId).eq('status', 'claimed'),
+    supabase.from('referrals').select('commission_earned, main_reward_paid, partner_reward_paid').eq('referrer_id', userId),
+  ]);
+  let earned = 0;
+  (ads.data || []).forEach((r: any) => earned += Number(r.earned || 0));
+  (clicks.data || []).forEach((r: any) => earned += Number(r.earned || 0));
+  (codes.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+  (weekly.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+  (shorts.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+  (games.data || []).forEach((r: any) => earned += Number(r.payout || 0) - Number(r.bet || 0));
+  (refs.data || []).forEach((r: any) => earned += Number(r.commission_earned || 0) + (r.main_reward_paid ? 50 : 0) + (r.partner_reward_paid ? 100 : 0));
+  return earned;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -60,6 +85,15 @@ Deno.serve(async (req) => {
 
     if (amount < minAmount) return new Response(JSON.stringify({ success: false, message: `Minimum ${minAmount} Bunny` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     if (Number(user.balance) < amount) return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    const earnedEstimate = await estimateEarned(supabase, user_id);
+    if (earnedEstimate > 0 && Number(user.balance) > earnedEstimate + 1000) {
+      const reason = `Auto-suspend: suspicious balance (${Number(user.balance).toFixed(0)} > earned ${earnedEstimate.toFixed(0)})`;
+      await supabase.from('users').update({ banned: true, suspension_reason: reason, suspended_at: new Date().toISOString() }).eq('id', user_id);
+      await sendTelegram('sendMessage', { chat_id: ADMIN_CHAT_ID, text: `🚫 <b>Auto-Suspend on Withdraw</b>\n\nUser: @${user.username || 'unknown'}\nTG ID: <code>${user.telegram_id}</code>\nReason: ${reason}`, parse_mode: 'HTML' }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      await sendTelegram('sendMessage', { chat_id: user.telegram_id, text: `🚫 Your account has been suspended.\n\nReason: Suspicious balance activity detected.` }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
+      return new Response(JSON.stringify({ success: false, message: 'Account suspended for review' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     const grossUsdt = amount * rate;
     if (grossUsdt > maxWithdrawUsdt) return new Response(JSON.stringify({ success: false, message: `Maximum ${maxWithdrawUsdt} USDT per withdrawal` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -102,15 +136,17 @@ Deno.serve(async (req) => {
       } catch {}
     }
 
+    const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
+
     await supabase.from('withdrawals').insert({
       user_id, amount, usdt_amount: grossUsdt, fee_usdt: fee, net_usdt: netUsdt,
       wallet_address, method, ton_amount: tonAmount, status: 'pending',
     });
+    await addHistory(supabase, user_id, 'withdrawal_pending', -Number(amount), '💸 Withdrawal Requested', `${methodLabel} pending approval`);
 
     const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: wallet_address };
     await supabase.from('users').update(update).eq('id', user_id);
 
-    const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
     const amountLine = isTon && tonAmount ? `🪙 TON: <b>${tonAmount} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
     await sendTelegram('sendMessage', {

@@ -7,7 +7,7 @@ import { processAdReward } from "@/lib/api";
 import { RewardPopup } from "@/components/RewardPopup";
 import { GuideButton } from "@/components/GuideButton";
 import {
-  showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd,
+  showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd, showMonetixAd,
   AdClosedEarlyError,
 } from "@/lib/ads";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ interface Props { userId: string }
 
 const COOLDOWN_HOURS = 24;
 
-type NetworkKey = "adsgram" | "monetag" | "adexium" | "gigapub";
+type NetworkKey = "adsgram" | "monetag" | "monetix" | "adexium" | "gigapub";
 
 const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; logo: string; color: string; border: string; hint: string }[] = [
   { key: "adsgram", name: "Adsgram AI", slots: 20, reward: 5, logo: adsgramLogo,
@@ -29,6 +29,9 @@ const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; 
   { key: "monetag", name: "Monetag", slots: 15, reward: 5, logo: monetagLogo,
     color: "from-green-500/30 to-emerald-500/15", border: "border-green-400/40",
     hint: "Watch full ad to earn" },
+  { key: "monetix", name: "Monetix", slots: 15, reward: 5, logo: monetagLogo,
+    color: "from-yellow-500/30 to-pink-500/15", border: "border-yellow-400/40",
+    hint: "Reward ad callback" },
   { key: "adexium", name: "Adexium", slots: 5, reward: 5, logo: adexiumLogo,
     color: "from-fuchsia-500/30 to-purple-500/15", border: "border-fuchsia-400/40",
     hint: "Interstitial widget" },
@@ -107,6 +110,7 @@ async function playForNetwork(network: NetworkKey, adIndex: number): Promise<num
     return adIndex % 2 === 1 ? showAdsgramBlock1() : showAdsgramBlock2();
   }
   if (network === "monetag") return showMonetagAd();
+  if (network === "monetix") return showMonetixAd();
   if (network === "adexium") return showAdexiumAd();
   return showGigapubAd();
 }

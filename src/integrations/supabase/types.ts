@@ -342,6 +342,140 @@ export type Database = {
         }
         Relationships: []
       }
+      reward_history: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          meta: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          meta?: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          meta?: Json | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      short_link_claims: {
+        Row: {
+          amount: number
+          claimed_at: string | null
+          id: string
+          next_available_at: string | null
+          reward_token: string
+          short_link_id: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          claimed_at?: string | null
+          id?: string
+          next_available_at?: string | null
+          reward_token: string
+          short_link_id: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          claimed_at?: string | null
+          id?: string
+          next_available_at?: string | null
+          reward_token?: string
+          short_link_id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "short_link_claims_short_link_id_fkey"
+            columns: ["short_link_id"]
+            isOneToOne: false
+            referencedRelation: "short_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "short_link_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      short_links: {
+        Row: {
+          active: boolean
+          created_at: string
+          daily_cooldown_hours: number
+          id: string
+          max_claims_per_user: number
+          reward_amount: number
+          reward_token: string
+          short_url: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          daily_cooldown_hours?: number
+          id?: string
+          max_claims_per_user?: number
+          reward_amount?: number
+          reward_token?: string
+          short_url: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          daily_cooldown_hours?: number
+          id?: string
+          max_claims_per_user?: number
+          reward_amount?: number
+          reward_token?: string
+          short_url?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       task_completions: {
         Row: {
           id: string

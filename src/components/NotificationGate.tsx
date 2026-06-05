@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Loader2, ExternalLink, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { enableNotifications } from "@/lib/api";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import bunnyLogo from "@/assets/bunny-logo.png";
@@ -19,6 +20,7 @@ export function NotificationGate({ userId, telegramId, onAllow }: Props) {
   const [opening, setOpening] = useState(false);
   const [opened, setOpened] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [enabled, setEnabled] = useState(false);
 
   // Poll the database — once notifications_enabled flips true (e.g. user
   // pressed the bot Start button), automatically close.
@@ -26,7 +28,7 @@ export function NotificationGate({ userId, telegramId, onAllow }: Props) {
     if (!opened) return;
     const t = setInterval(async () => {
       const { data } = await supabase.from("users").select("notifications_enabled").eq("id", userId).single();
-      if (data?.notifications_enabled) { clearInterval(t); onAllow(); }
+      if (data?.notifications_enabled) { clearInterval(t); setEnabled(true); onAllow(); }
     }, 3000);
     return () => clearInterval(t);
   }, [opened, userId, onAllow]);
@@ -42,15 +44,19 @@ export function NotificationGate({ userId, telegramId, onAllow }: Props) {
   async function handleConfirm() {
     setConfirming(true);
     try {
-      const { error } = await supabase.from("users").update({ notifications_enabled: true }).eq("id", userId);
-      if (error) throw error;
+      const result = await enableNotifications(userId, telegramId);
+      if (!result?.success) throw new Error(result?.message || "Could not enable notifications");
       toast.success("🔔 Notifications enabled!");
+      setEnabled(true);
       onAllow();
-    } catch {
-      toast.error("Try again — make sure you started the bot.");
+    } catch (e: any) {
+      toast.error(e?.message || "Try again — make sure you started the bot.");
+    } finally {
+      setConfirming(false);
     }
-    setConfirming(false);
   }
+
+  if (enabled) return null;
 
   return (
     <AnimatePresence>

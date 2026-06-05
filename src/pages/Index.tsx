@@ -7,6 +7,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { HomeTab } from "@/components/tabs/HomeTab";
 import { TasksTab } from "@/components/tabs/TasksTab";
 import { EarnTab } from "@/components/tabs/EarnTab";
+import { ShortLinksTab } from "@/components/tabs/ShortLinksTab";
+import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
@@ -53,6 +55,7 @@ const Index = () => {
       setProgress(75);
       setUserId(result.user.id);
       setUser(result.user);
+      if (startParam?.startsWith("sl_")) setActiveTab("shortlinks");
 
       if (result.user.banned) { setProgress(100); setTimeout(() => setAppState("banned"), 500); return; }
 
@@ -97,6 +100,8 @@ const Index = () => {
           {activeTab === "tasks"    && <TasksTab key="tasks" userId={userId} telegramId={user?.telegram_id} />}
           {activeTab === "watchads" && <WatchAdsTab key="watchads" userId={userId} />}
           {activeTab === "earn"     && <EarnTab key="earn" userId={userId} telegramId={user?.telegram_id} />}
+          {activeTab === "shortlinks" && <ShortLinksTab key="shortlinks" userId={userId} />}
+          {activeTab === "history"  && <HistoryTab key="history" userId={userId} />}
           {activeTab === "withdraw" && <WithdrawTab key="withdraw" userId={userId} user={user} />}
           {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} />}
         </AnimatePresence>

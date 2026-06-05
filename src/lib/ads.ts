@@ -5,6 +5,7 @@ const MIN_SECONDS: Record<string, number> = {
   adsgram_block1: 17,
   adsgram_block2: 33,
   monetag: 15,
+  monetix: 15,
   adexium: 15,
   gigapub: 15,
 };
@@ -12,6 +13,7 @@ const MIN_SECONDS: Record<string, number> = {
 export const ADSGRAM_BLOCK_1 = "int-33841"; // 17s, also used for auto-ad
 export const ADSGRAM_BLOCK_2 = "33840";     // 33s
 export const MONETAG_ZONE = "11090694";
+export const MONETIX_ID = "MX-38D29668";
 export const ADEXIUM_WID = "de7a9891-5239-4120-80ee-4c3050e7b0ae";
 
 export class AdClosedEarlyError extends Error {
@@ -79,6 +81,23 @@ export async function showAdexiumAd(): Promise<number> {
   return secs;
 }
 
+export async function showMonetixAd(): Promise<number> {
+  const showRewardAd = (window as any).showRewardAd;
+  if (typeof showRewardAd !== "function") throw new Error("Monetix SDK not loaded");
+  const start = Date.now();
+  await new Promise<void>((resolve) => {
+    try {
+      showRewardAd((res: any) => {
+        if (res?.status === "completed" || res?.status === "closed") resolve();
+        else resolve();
+      });
+      setTimeout(() => resolve(), 60000);
+    } catch { resolve(); }
+  });
+  const secs = Math.max(MIN_SECONDS.monetix, Math.round((Date.now() - start) / 1000));
+  return secs;
+}
+
 export async function showGigapubAd(): Promise<number> {
   const showGiga = (window as any).showGiga;
   if (typeof showGiga !== "function") throw new Error("GigaPub SDK not loaded");
@@ -98,7 +117,7 @@ export async function showGigapubAd(): Promise<number> {
 // "claim refer reward" or "submit withdraw".
 // Silently swallows failures so user-flow is never blocked.
 export async function showRandomAd(): Promise<void> {
-  const pool = [showAdsgramBlock1, showMonetagAd, showAdexiumAd];
+  const pool = [showAdsgramBlock1, showMonetagAd, showAdexiumAd, showMonetixAd];
   const pick = pool[Math.floor(Math.random() * pool.length)];
   try { await pick(); } catch { /* don't block user on ad failure */ }
 }
