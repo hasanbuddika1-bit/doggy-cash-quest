@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Megaphone, Settings, Check, X, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Megaphone, Settings, Check, X, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,7 @@ export default function AdminPanel() {
           <TabsTrigger value="tgtasks" className="text-xs">📢 TG Tasks</TabsTrigger>
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
           <TabsTrigger value="withdrawals" className="text-xs">💸 Withdrawals</TabsTrigger>
+          <TabsTrigger value="shortlinks" className="text-xs">🔗 Short Links</TabsTrigger>
           <TabsTrigger value="codes" className="text-xs">🎁 Codes</TabsTrigger>
           <TabsTrigger value="channels" className="text-xs">📢 Channels</TabsTrigger>
           <TabsTrigger value="broadcast" className="text-xs">📡 Broadcast</TabsTrigger>
@@ -55,6 +56,7 @@ export default function AdminPanel() {
         <TabsContent value="tgtasks"><TasksTab taskType="one_click" /></TabsContent>
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
         <TabsContent value="withdrawals"><WithdrawalsTab /></TabsContent>
+        <TabsContent value="shortlinks"><ShortLinksAdminTab /></TabsContent>
         <TabsContent value="codes"><CodesTab /></TabsContent>
         <TabsContent value="channels"><ChannelsTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
@@ -727,6 +729,73 @@ function WithdrawalsTab() {
         );
       })}
       </div>
+    </div>
+  );
+}
+
+function ShortLinksAdminTab() {
+  const [links, setLinks] = useState<any[]>([]);
+  const [title, setTitle] = useState("Short links 1");
+  const [shortUrl, setShortUrl] = useState("");
+  const [reward, setReward] = useState("10");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { loadLinks(); }, []);
+
+  async function loadLinks() {
+    const r = await adminAction("list_short_links", {});
+    setLinks(r.links || []);
+  }
+
+  async function createLink() {
+    if (!title.trim() || !shortUrl.trim()) { toast.error("Title and short URL required"); return; }
+    setSaving(true);
+    try {
+      const r = await adminAction("create_short_link", { link_data: { title: title.trim(), short_url: shortUrl.trim(), reward_amount: Number(reward), sort_order: links.length + 1 } });
+      await navigator.clipboard.writeText(r.reward_url || "");
+      toast.success("Short link created + reward URL copied");
+      setTitle(`Short links ${links.length + 2}`); setShortUrl(""); setReward("10");
+      loadLinks();
+    } catch { toast.error("Create failed"); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <div className="bg-card rounded-xl p-3 border border-border space-y-2">
+        <p className="text-sm font-semibold">🔗 Add Short Link</p>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short links 1" className="h-8 text-xs" />
+        <Input value={shortUrl} onChange={(e) => setShortUrl(e.target.value)} placeholder="Short URL e.g. https://ouo.io/XoyIOo" className="h-8 text-xs" />
+        <Input type="number" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="Reward Bunny" className="h-8 text-xs" />
+        <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={createLink} disabled={saving}>
+          {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Create + Copy Reward URL
+        </Button>
+      </div>
+
+      {links.map((l) => (
+        <div key={l.id} className="bg-card rounded-lg p-3 border border-border">
+          <div className="flex justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{l.title}</p>
+              <p className="text-xs text-primary">+{Number(l.reward_amount || 0).toFixed(0)} 🐰 • {l.active ? "Active" : "Inactive"}</p>
+              <a href={l.short_url} target="_blank" className="text-[10px] text-blue-400 underline break-all">{l.short_url}</a>
+              <p className="text-[10px] text-muted-foreground break-all mt-1">Reward URL: {l.reward_url}</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => { navigator.clipboard.writeText(l.reward_url); toast.success("Copied reward URL"); }}><Copy className="w-3 h-3" /></Button>
+              <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => window.open(l.short_url, "_blank")}><ExternalLink className="w-3 h-3" /></Button>
+              <Button size="sm" variant={l.active ? "destructive" : "outline"} className="h-6 text-[10px]" onClick={async () => {
+                await adminAction("update_short_link", { link_id: l.id, updates: { active: !l.active } });
+                loadLinks();
+              }}>{l.active ? "Off" : "On"}</Button>
+              <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={async () => {
+                await adminAction("delete_short_link", { link_id: l.id });
+                loadLinks();
+              }}><Trash2 className="w-3 h-3" /></Button>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
