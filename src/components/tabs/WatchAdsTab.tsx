@@ -15,7 +15,6 @@ import adsgramLogo from "@/assets/logo-adsgram.png";
 import monetagLogo from "@/assets/logo-monetag.png";
 import adexiumLogo from "@/assets/logo-adexium.png";
 import gigapubLogo from "@/assets/logo-gigapub.png";
-import monetixLogo from "@/assets/logo-monetix.png";
 
 interface Props { userId: string }
 
@@ -30,7 +29,7 @@ const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; 
   { key: "monetag", name: "Monetag", slots: 15, reward: 5, logo: monetagLogo,
     color: "from-green-500/30 to-emerald-500/15", border: "border-green-400/40",
     hint: "Watch full ad to earn" },
-  { key: "monetix", name: "Monetix", slots: 15, reward: 5, logo: monetixLogo,
+  { key: "monetix", name: "Monetix", slots: 15, reward: 5, logo: monetagLogo,
     color: "from-yellow-500/30 to-pink-500/15", border: "border-yellow-400/40",
     hint: "Reward ad callback" },
   { key: "adexium", name: "Adexium", slots: 5, reward: 5, logo: adexiumLogo,
