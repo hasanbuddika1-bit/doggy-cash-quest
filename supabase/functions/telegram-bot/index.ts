@@ -703,7 +703,7 @@ Deno.serve(async (req) => {
       const newBalance = Number(u.balance) - betNum + payout;
       await supabase.from('users').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('id', user_id);
       await supabase.from('game_plays').insert({ user_id, game, bet: betNum, payout, won, meta });
-      await addHistory(supabase, user_id, 'game', won ? payout : -betNum, won ? '🎮 Game Win' : '🎮 Game Loss', `${game} ${won ? 'won' : 'lost'}`);
+      await addHistory(supabase, user_id, 'game', payout - betNum, won ? '🎮 Game Win' : '🎮 Game Loss', `${game} ${won ? 'won' : 'lost'}`);
       return new Response(JSON.stringify({ success: true, won, payout, new_balance: newBalance, meta }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
