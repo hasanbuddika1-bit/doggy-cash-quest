@@ -136,6 +136,8 @@ Deno.serve(async (req) => {
       } catch {}
     }
 
+    const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
+
     await supabase.from('withdrawals').insert({
       user_id, amount, usdt_amount: grossUsdt, fee_usdt: fee, net_usdt: netUsdt,
       wallet_address, method, ton_amount: tonAmount, status: 'pending',
@@ -145,7 +147,6 @@ Deno.serve(async (req) => {
     const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: wallet_address };
     await supabase.from('users').update(update).eq('id', user_id);
 
-    const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
     const amountLine = isTon && tonAmount ? `🪙 TON: <b>${tonAmount} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
     await sendTelegram('sendMessage', {
