@@ -28,6 +28,8 @@ async function tg(method: string, body: any, lovableKey: string, tgKey: string) 
   return json;
 }
 
+const WELCOME_PHOTO = 'https://doggy-cash-quest.lovable.app/bunny-welcome.jpg';
+
 function welcomeKeyboard() {
   return {
     inline_keyboard: [
@@ -38,7 +40,6 @@ function welcomeKeyboard() {
 }
 
 async function handleStart(chatId: number, firstName: string, payload: string, lovableKey: string, tgKey: string, supabase: any) {
-  // Handle notification-enable payload: /start notify_<tg_id>
   if (payload.startsWith('notify_')) {
     const tgId = Number(payload.slice('notify_'.length));
     if (tgId && tgId === chatId) {
@@ -53,8 +54,17 @@ async function handleStart(chatId: number, firstName: string, payload: string, l
     return;
   }
 
-  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 Earn Bunny by watching ads, completing tasks & referring friends.\n💵 100 Bunny = 0.01 USDT\n\n👇 Tap below to start earning!`;
-  await tg('sendMessage', { chat_id: chatId, text: caption, parse_mode: 'HTML', reply_markup: welcomeKeyboard() }, lovableKey, tgKey);
+  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 <b>Earn Bunny</b> by watching ads, completing tasks, playing mini-games & referring friends.\n💵 100 🐰 = 0.01 USDT\n🚀 Instant withdrawals — USDT (Aptos) / TON\n\n👇 Tap below to open the mini app and start earning!`;
+  const photoResp = await tg('sendPhoto', {
+    chat_id: chatId,
+    photo: WELCOME_PHOTO,
+    caption,
+    parse_mode: 'HTML',
+    reply_markup: welcomeKeyboard(),
+  }, lovableKey, tgKey);
+  if (!photoResp?.ok) {
+    await tg('sendMessage', { chat_id: chatId, text: caption, parse_mode: 'HTML', reply_markup: welcomeKeyboard() }, lovableKey, tgKey);
+  }
 }
 
 Deno.serve(async (req) => {

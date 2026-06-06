@@ -8,24 +8,38 @@ import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 
-const BET = 500;
+const MIN_BET = 10;
+const BET_OPTIONS = [10, 50, 100, 500, 1000];
+const MULTIPLIER = 1.8;
 
 interface GamesSectionProps { userId: string; }
 
 type GameKey = "coin" | "mines" | "crash";
 
-const GAMES: { key: GameKey; emoji: string; label: string; desc: string; multiplier: string }[] = [
-  { key: "coin",  emoji: "🪙", label: "Coin Flip", desc: "Pick Heads / Tails — 25% to win 3x",   multiplier: "x3" },
-  { key: "mines", emoji: "💣", label: "Mines",     desc: "Pick the safe tile of 4 — wins 3.5x",   multiplier: "x3.5" },
-  { key: "crash", emoji: "🚀", label: "Crash",     desc: "Auto cash-out at 2.5x — 25% pass rate", multiplier: "x2.5" },
+const GAMES: { key: GameKey; emoji: string; label: string; desc: string }[] = [
+  { key: "coin",  emoji: "🪙", label: "Coin Flip", desc: "Pick Heads / Tails — win 1.8x your bet" },
+  { key: "mines", emoji: "💣", label: "Mines",     desc: "Pick the safe tile of 4 — win 1.8x your bet" },
+  { key: "crash", emoji: "🚀", label: "Crash",     desc: "Auto cash-out at 1.8x — beat the crash!" },
 ];
 
 export function GamesSection({ userId }: GamesSectionProps) {
   const [active, setActive] = useState<GameKey>("coin");
+  const [bet, setBet] = useState<number>(MIN_BET);
   const [balance, setBalance] = useState(0);
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<{ show: boolean; amount: number; msg?: string }>({ show: false, amount: 0 });
   const [history, setHistory] = useState<any[]>([]);
+  const [livePlays, setLivePlays] = useState<Record<string, number>>({ coin: 0, mines: 0, crash: 0 });
+
+  const loadCounts = useCallback(async () => {
+    const games: GameKey[] = ["coin", "mines", "crash"];
+    const counts: Record<string, number> = {};
+    await Promise.all(games.map(async (g) => {
+      const { count } = await supabase.from("game_plays").select("id", { count: "exact", head: true }).eq("game", g);
+      counts[g] = count || 0;
+    }));
+    setLivePlays(counts);
+  }, []);
 
   const load = useCallback(async () => {
     const [{ data: u }, { data: h }] = await Promise.all([
@@ -34,23 +48,32 @@ export function GamesSection({ userId }: GamesSectionProps) {
     ]);
     setBalance(Number(u?.balance || 0));
     setHistory(h || []);
-  }, [userId]);
+    loadCounts();
+  }, [userId, loadCounts]);
 
   useEffect(() => { load(); }, [load]);
 
+  // Live realtime: refresh play counts when any row inserted
+  useEffect(() => {
+    const ch = supabase.channel("game_plays_live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "game_plays" }, () => loadCounts())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [loadCounts]);
+
   async function play(game: GameKey, choice: any) {
     if (busy) return;
-    if (balance < BET) { toast.error(`Need ${BET} 🐰 to play`); return; }
+    if (balance < bet) { toast.error(`Need ${bet} 🐰 to play`); return; }
     setBusy(true);
     try {
       toast.info("📺 Watch a quick ad to play...");
       await showRandomAd();
-      const r = await playGame(userId, game, BET, choice);
+      const r = await playGame(userId, game, bet, choice);
       if (!r.success) { toast.error(r.message || "Play failed"); }
       else {
         setBalance(Number(r.new_balance));
         if (r.won) setReward({ show: true, amount: Number(r.payout), msg: "🎉 YOU WON!" });
-        else toast.error(`😿 Lost ${BET} 🐰 — try again!`);
+        else toast.error(`😿 Lost ${bet} 🐰 — try again!`);
         load();
       }
     } catch (e: any) { toast.error(e?.message || "Play failed"); }
@@ -64,19 +87,27 @@ export function GamesSection({ userId }: GamesSectionProps) {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-gradient-to-br from-bunny-gold/25 via-card to-bunny-pink/15 rounded-2xl p-4 border border-bunny-gold/30 text-center"
       >
-        <p className="text-xs text-muted-foreground">Bet per play</p>
-        <p className="text-2xl font-display font-bold text-gradient-bunny">{BET} 🐰</p>
-        <p className="text-[11px] text-muted-foreground mt-1">Balance: {balance.toFixed(0)} 🐰 • Win rate ~25%</p>
+        <p className="text-xs text-muted-foreground">Bet</p>
+        <p className="text-2xl font-display font-bold text-gradient-bunny">{bet} 🐰 → x{MULTIPLIER}</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Balance: {balance.toFixed(0)} 🐰</p>
+        <div className="flex gap-1.5 justify-center mt-2 flex-wrap">
+          {BET_OPTIONS.map((b) => (
+            <button key={b} onClick={() => setBet(b)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold ${bet === b ? "bg-gradient-bunny text-primary-foreground" : "bg-card border border-bunny-pink/20"}`}
+            >{b}</button>
+          ))}
+        </div>
       </motion.div>
 
       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
         {GAMES.map((g) => (
           <button key={g.key} onClick={() => setActive(g.key)}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex flex-col items-center gap-0.5 ${
               active === g.key ? "bg-gradient-bunny text-primary-foreground shadow-lg" : "bg-card text-muted-foreground border border-bunny-pink/15"
             }`}
           >
-            <span>{g.emoji}</span> {g.label} <span className="opacity-70">{g.multiplier}</span>
+            <span className="flex items-center gap-1"><span>{g.emoji}</span> {g.label}</span>
+            <span className="text-[9px] opacity-80">🟢 {livePlays[g.key] || 0} plays</span>
           </button>
         ))}
       </div>
@@ -116,7 +147,7 @@ export function GamesSection({ userId }: GamesSectionProps) {
               className="w-full h-16 bg-gradient-to-r from-bunny-gold to-amber-500 text-primary-foreground border-0 font-bold text-lg"
             >
               {busy ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "🚀 "}
-              Launch & Cash-out @ 2.5x
+              Launch & Cash-out @ {MULTIPLIER}x
             </Button>
           )}
         </motion.div>

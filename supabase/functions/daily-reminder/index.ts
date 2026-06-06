@@ -7,9 +7,8 @@ const MINI_APP_URL = 'https://t.me/Bunnyearnbot?startapp=home';
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
 const MESSAGES = [
-  '🌅 <b>Good morning, Bunny!</b> 🐰\n\nFresh ad slots have reset — earn your daily 🐰 now and stay ahead of the leaderboard!',
-  '☀️ <b>Hop hop! Midday boost!</b> 🥕\n\nDon\'t miss today\'s ads & tasks. A few minutes = more Bunny in your wallet.',
-  '🌙 <b>Don\'t forget tonight\'s claim!</b> ✨\n\nWatch a few ads, complete tasks & top-up your balance before the day ends.',
+  '☀️ <b>Good morning, Bunny!</b> 🐰\n\nFresh ad slots have reset — log in now, watch ads, finish tasks & top-up your 🐰 balance!',
+  '🌙 <b>Don\'t forget tonight\'s claim!</b> ✨\n\nA few minutes of tapping = more Bunny. Open the mini app before the day ends and grab today\'s rewards!',
 ];
 
 async function tg(method: string, body: any) {
@@ -23,11 +22,9 @@ async function tg(method: string, body: any) {
 }
 
 function pickMessage(): string {
+  // Two notifications per day target — pick morning vs evening.
   const hour = new Date().getUTCHours();
-  // Roughly: 0-9 morning, 10-15 midday, 16-23 evening
-  if (hour < 10) return MESSAGES[0];
-  if (hour < 16) return MESSAGES[1];
-  return MESSAGES[2];
+  return hour < 12 ? MESSAGES[0] : MESSAGES[1];
 }
 
 Deno.serve(async (req) => {

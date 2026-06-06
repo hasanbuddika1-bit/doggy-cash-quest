@@ -656,13 +656,13 @@ Deno.serve(async (req) => {
     }
     if (action === 'play_game') {
       const { user_id, game, bet, choice } = body;
-      const betNum = Number(bet);
+      const betNum = Math.floor(Number(bet));
       const allowedGames = ['coin', 'mines', 'crash'];
       if (!user_id || !allowedGames.includes(game)) {
         return new Response(JSON.stringify({ success: false, message: 'Invalid game' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      if (!Number.isFinite(betNum) || betNum < 500 || betNum > 500) {
-        return new Response(JSON.stringify({ success: false, message: 'Bet must be 500 🐰' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (!Number.isFinite(betNum) || betNum < 10 || betNum > 10000) {
+        return new Response(JSON.stringify({ success: false, message: 'Bet must be 10 - 10000 🐰' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const { data: u } = await supabase.from('users').select('id, balance, banned').eq('id', user_id).single();
       if (!u || u.banned) {
@@ -671,34 +671,23 @@ Deno.serve(async (req) => {
       if (Number(u.balance) < betNum) {
         return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      // Server-side RNG — 25% house-favored win rate per game.
+      // Server-side RNG — 25% house-favored win rate, fixed 1.8x payout for all games.
+      const MULTIPLIER = 1.8;
       const buf = new Uint32Array(1); crypto.getRandomValues(buf);
-      const roll = buf[0] / 0xffffffff;
-      let won = false, payout = 0, meta: any = {};
+      const won = (buf[0] / 0xffffffff) < 0.25;
+      const payout = won ? Math.floor(betNum * MULTIPLIER) : 0;
+      const meta: any = { multiplier: MULTIPLIER };
       if (game === 'coin') {
-        const serverSide = roll < 0.5 ? 'heads' : 'tails';
-        // Force 25% win rate (independent of choice) by capping randomness.
-        const winRoll = new Uint32Array(1); crypto.getRandomValues(winRoll);
-        won = (winRoll[0] / 0xffffffff) < 0.25;
-        payout = won ? betNum * 3 : 0;
-        meta = { choice, server: won ? choice : (choice === 'heads' ? 'tails' : 'heads'), reveal: serverSide };
+        meta.choice = choice;
+        meta.reveal = won ? choice : (choice === 'heads' ? 'tails' : 'heads');
       } else if (game === 'mines') {
-        // Pick 1 of 4 tiles; 1 is safe (25%). Server picks safe tile randomly.
         const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
-        const safeTile = r1[0] % 4;
-        const pick = Number(choice);
-        won = pick === safeTile;
-        payout = won ? betNum * 3.5 : 0;
-        meta = { pick, safe: safeTile };
+        const safeTile = won ? Number(choice) : ((Number(choice) + 1 + (r1[0] % 3)) % 4);
+        meta.pick = Number(choice); meta.safe = safeTile;
       } else if (game === 'crash') {
-        // Cash out at 2.5x; 25% chance crash >= 2.5x.
         const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
-        const win = (r1[0] / 0xffffffff) < 0.25;
-        // Generate a believable crash multiplier
-        const crashPoint = win ? (2.5 + Math.random() * 5) : (0.5 + Math.random() * 1.95);
-        won = win;
-        payout = won ? betNum * 2.5 : 0;
-        meta = { crashPoint: Number(crashPoint.toFixed(2)), cashOut: 2.5 };
+        const crashPoint = won ? (1.8 + (r1[0] / 0xffffffff) * 5) : (0.3 + (r1[0] / 0xffffffff) * 1.4);
+        meta.crashPoint = Number(crashPoint.toFixed(2)); meta.cashOut = MULTIPLIER;
       }
       const newBalance = Number(u.balance) - betNum + payout;
       await supabase.from('users').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('id', user_id);
