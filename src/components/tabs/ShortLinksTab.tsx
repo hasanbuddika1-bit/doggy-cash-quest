@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ExternalLink, Gift, Loader2, RotateCcw } from "lucide-react";
+import { ExternalLink, Gift, Loader2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { claimShortLink, getShortLinks, startShortLink } from "@/lib/api";
 import { getStartParam, getTelegramWebApp } from "@/lib/telegram";
@@ -9,10 +9,28 @@ import { RewardPopup } from "@/components/RewardPopup";
 
 interface Props { userId: string }
 
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), intervalMs); return () => clearInterval(id); }, [intervalMs]);
+  return now;
+}
+
+function fmtCountdown(ms: number) {
+  if (ms <= 0) return "0s";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
 export function ShortLinksTab({ userId }: Props) {
   const [links, setLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [reward, setReward] = useState({ show: false, amount: 0 });
+  const now = useNow(1000);
 
   const load = useCallback(async () => {
     const r = await getShortLinks(userId);
@@ -53,13 +71,14 @@ export function ShortLinksTab({ userId }: Props) {
         className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30"
       >
         <p className="font-display font-bold text-gradient-bunny text-sm">🔗 Short Links</p>
-        <p className="text-[11px] text-muted-foreground">Start link → finish sponsor page → get reward</p>
+        <p className="text-[11px] text-muted-foreground">Tap reward → finish sponsor page → get bunny. 24h cooldown per link.</p>
       </motion.div>
 
       {links.length === 0 && <div className="text-center py-10 text-sm text-muted-foreground">No short links available.</div>}
       {links.map((link, i) => {
         const nextAt = link.claim?.next_available_at ? new Date(link.claim.next_available_at).getTime() : 0;
-        const locked = nextAt > Date.now();
+        const remaining = nextAt - now;
+        const locked = remaining > 0;
         return (
           <motion.div key={link.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
             className="bg-gradient-to-br from-card to-bunny-pink/10 rounded-2xl p-4 border border-bunny-pink/20"
@@ -68,13 +87,17 @@ export function ShortLinksTab({ userId }: Props) {
               <div className="min-w-0">
                 <p className="font-display font-bold text-sm">{link.title}</p>
                 <p className="text-xs text-gradient-bunny font-bold">+{Number(link.reward_amount || 0).toFixed(0)} 🐰</p>
-                {locked && <p className="text-[10px] text-muted-foreground mt-1">Next: {new Date(nextAt).toLocaleString()}</p>}
+                {locked && (
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Next in {fmtCountdown(remaining)}
+                  </p>
+                )}
               </div>
               <Button onClick={() => handleStart(link)} disabled={loading === link.id || locked}
                 className="h-10 px-3 rounded-2xl bg-gradient-bunny text-primary-foreground font-bold text-xs"
               >
-                {loading === link.id ? <Loader2 className="w-4 h-4 animate-spin" /> : locked ? <RotateCcw className="w-4 h-4 mr-1" /> : <Gift className="w-4 h-4 mr-1" />}
-                {locked ? "24h" : "Reward Start"}
+                {loading === link.id ? <Loader2 className="w-4 h-4 animate-spin" /> : locked ? <Clock className="w-4 h-4 mr-1" /> : <Gift className="w-4 h-4 mr-1" />}
+                {locked ? fmtCountdown(remaining) : "Reward Start"}
                 {!locked && <ExternalLink className="w-3 h-3 ml-1" />}
               </Button>
             </div>
