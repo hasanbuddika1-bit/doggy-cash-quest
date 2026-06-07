@@ -90,7 +90,7 @@ export function WatchAdsTab({ userId }: Props) {
           <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="grid grid-cols-1 gap-3"
           >
-            {NETWORKS.map((n, i) => (
+            {networks.map((n, i) => (
               <motion.button key={n.key}
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
