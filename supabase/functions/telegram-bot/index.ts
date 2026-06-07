@@ -642,9 +642,18 @@ Deno.serve(async (req) => {
       if (!link) throw new Error('Invalid reward link');
       const now = new Date();
       const nextAt = new Date(now.getTime() + Number(link.daily_cooldown_hours || 24) * 3600 * 1000).toISOString();
-      const { data: existingClaimed } = await supabase.from('short_link_claims').select('id, next_available_at').eq('user_id', user_id).eq('short_link_id', short_link_id).eq('status', 'claimed').order('claimed_at', { ascending: false }).limit(1).maybeSingle();
-      if (existingClaimed?.next_available_at && new Date(existingClaimed.next_available_at).getTime() > now.getTime()) {
-        return new Response(JSON.stringify({ success: false, message: 'Already claimed. Try after cooldown.', next_available_at: existingClaimed.next_available_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Check ANY existing claim (claimed status) for this user+link with cooldown still active
+      const { data: anyClaim } = await supabase
+        .from('short_link_claims')
+        .select('id, next_available_at, claimed_at, status')
+        .eq('user_id', user_id)
+        .eq('short_link_id', short_link_id)
+        .eq('status', 'claimed')
+        .order('claimed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (anyClaim?.next_available_at && new Date(anyClaim.next_available_at).getTime() > now.getTime()) {
+        return new Response(JSON.stringify({ success: false, message: 'Already claimed. Wait for cooldown.', next_available_at: anyClaim.next_available_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const amount = Number(link.reward_amount || 0);
       const { data: u } = await supabase.from('users').select('balance, banned').eq('id', user_id).single();
