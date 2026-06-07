@@ -22,7 +22,7 @@ const COOLDOWN_HOURS = 24;
 
 type NetworkKey = "adsgram" | "monetag" | "monetix" | "adexium" | "gigapub";
 
-const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; logo: string; color: string; border: string; hint: string }[] = [
+const DEFAULT_NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; logo: string; color: string; border: string; hint: string }[] = [
   { key: "adsgram", name: "Adsgram AI", slots: 20, reward: 5, logo: adsgramLogo,
     color: "from-cyan-500/30 to-blue-500/15", border: "border-cyan-400/40",
     hint: "Odd slots: 17s ad • Even slots: 33s ad" },
@@ -40,10 +40,29 @@ const NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; 
     hint: "10 ads • 3 🐰 each" },
 ];
 
-type Network = typeof NETWORKS[number];
+type Network = typeof DEFAULT_NETWORKS[number];
 
 export function WatchAdsTab({ userId }: Props) {
   const [selected, setSelected] = useState<Network | null>(null);
+  const [networks, setNetworks] = useState<Network[]>(DEFAULT_NETWORKS);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("app_settings").select("value").eq("key", "ad_networks_config").maybeSingle();
+      if (!data?.value) return;
+      try {
+        const cfg = JSON.parse(data.value);
+        const filtered = DEFAULT_NETWORKS
+          .map(n => {
+            const c = cfg[n.key] || {};
+            if (c.enabled === false) return null;
+            return { ...n, slots: Math.max(0, Number(c.slots ?? n.slots)), reward: Math.max(0, Number(c.reward ?? n.reward)) };
+          })
+          .filter(Boolean) as Network[];
+        setNetworks(filtered);
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   return (
     <div className="px-4 pt-4 pb-24">
