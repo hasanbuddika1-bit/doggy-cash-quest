@@ -43,6 +43,10 @@ export function ShortLinksTab({ userId }: Props) {
     if (!start?.startsWith("sl_")) return;
     const [, linkId, token] = start.match(/^sl_([^_]+)_(.+)$/) || [];
     if (!linkId || !token) return;
+    // Dedupe: only attempt once per (user, link, token) per browser session.
+    const key = `sl_claim_${userId}_${linkId}_${token}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
     (async () => {
       try {
         const r = await claimShortLink(userId, linkId, token);
