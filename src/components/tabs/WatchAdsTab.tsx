@@ -158,6 +158,7 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
       load();
     } catch (e) {
       if (e instanceof AdClosedEarlyError) setShowAdError(true);
+      else if (e instanceof AdNotShownError) toast.error(`No ad available right now (${e.network}). Try another network.`);
       else toast.error("Failed to load ad");
     }
     setWatchingAd(null);
