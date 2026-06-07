@@ -8,7 +8,7 @@ import { RewardPopup } from "@/components/RewardPopup";
 import { GuideButton } from "@/components/GuideButton";
 import {
   showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd, showMonetixAd,
-  AdClosedEarlyError,
+  AdClosedEarlyError, AdNotShownError,
 } from "@/lib/ads";
 import { toast } from "sonner";
 import adsgramLogo from "@/assets/logo-adsgram.png";
