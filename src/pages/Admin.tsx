@@ -44,6 +44,7 @@ export default function AdminPanel() {
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
           <TabsTrigger value="withdrawals" className="text-xs">💸 Withdrawals</TabsTrigger>
           <TabsTrigger value="shortlinks" className="text-xs">🔗 Short Links</TabsTrigger>
+          <TabsTrigger value="ads" className="text-xs">📺 Ads</TabsTrigger>
           <TabsTrigger value="codes" className="text-xs">🎁 Codes</TabsTrigger>
           <TabsTrigger value="channels" className="text-xs">📢 Channels</TabsTrigger>
           <TabsTrigger value="broadcast" className="text-xs">📡 Broadcast</TabsTrigger>
@@ -57,6 +58,7 @@ export default function AdminPanel() {
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
         <TabsContent value="withdrawals"><WithdrawalsTab /></TabsContent>
         <TabsContent value="shortlinks"><ShortLinksAdminTab /></TabsContent>
+        <TabsContent value="ads"><AdsManageTab /></TabsContent>
         <TabsContent value="codes"><CodesTab /></TabsContent>
         <TabsContent value="channels"><ChannelsTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
