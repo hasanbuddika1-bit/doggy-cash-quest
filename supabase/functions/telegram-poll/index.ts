@@ -79,6 +79,9 @@ Deno.serve(async (req) => {
   let currentOffset: number = state.update_offset;
   let totalProcessed = 0;
 
+  // Ensure no webhook is set — webhook + getUpdates conflict returns 409.
+  try { await tg('deleteWebhook', { drop_pending_updates: false }, LOVABLE_API_KEY, TELEGRAM_API_KEY); } catch (e) { console.error('deleteWebhook failed', e); }
+
   while (true) {
     const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
     if (remaining < MIN_REMAINING_MS) break;
