@@ -1010,3 +1010,90 @@ function SettingsTab() {
     </div>
   );
 }
+
+const AD_NETWORKS = [
+  { key: "adsgram", name: "Adsgram AI" },
+  { key: "monetag", name: "Monetag" },
+  { key: "monetix", name: "Monetix" },
+  { key: "adexium", name: "Adexium" },
+  { key: "gigapub", name: "GigaPub" },
+];
+
+function AdsManageTab() {
+  const [cfg, setCfg] = useState<Record<string, { enabled: boolean; slots: number; reward: number }>>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    const { data } = await supabase.from("app_settings").select("value").eq("key", "ad_networks_config").maybeSingle();
+    let parsed: any = {};
+    try { parsed = data?.value ? JSON.parse(data.value) : {}; } catch { parsed = {}; }
+    const next: any = {};
+    AD_NETWORKS.forEach(n => {
+      const c = parsed[n.key] || {};
+      next[n.key] = {
+        enabled: c.enabled !== false,
+        slots: Number(c.slots ?? (n.key === "adsgram" ? 20 : n.key === "monetag" || n.key === "monetix" ? 15 : n.key === "gigapub" ? 10 : 5)),
+        reward: Number(c.reward ?? (n.key === "gigapub" ? 3 : 5)),
+      };
+    });
+    setCfg(next);
+  }
+
+  async function save() {
+    setLoading(true);
+    try {
+      await adminAction("update_settings", { key: "ad_networks_config", value: JSON.stringify(cfg) });
+      toast.success("📺 Ads config saved!");
+    } catch { toast.error("Failed to save"); }
+    setLoading(false);
+  }
+
+  function update(key: string, patch: Partial<{ enabled: boolean; slots: number; reward: number }>) {
+    setCfg(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <div className="bg-card rounded-xl p-3 border border-border">
+        <p className="text-sm font-semibold mb-2">📺 Ad Networks — show/hide & rewards</p>
+        <div className="space-y-2">
+          {AD_NETWORKS.map(n => {
+            const c = cfg[n.key] || { enabled: true, slots: 0, reward: 0 };
+            return (
+              <div key={n.key} className="bg-muted/30 rounded-lg p-3 border border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-bold">{n.name}</p>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" checked={c.enabled} onChange={e => update(n.key, { enabled: e.target.checked })} className="w-4 h-4" />
+                    <span className={c.enabled ? "text-green-500" : "text-muted-foreground"}>{c.enabled ? "Visible" : "Hidden"}</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Slots</label>
+                    <Input type="number" min={0} max={100} value={c.slots}
+                      onChange={e => update(n.key, { slots: Math.max(0, Number(e.target.value || 0)) })}
+                      className="h-8 text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Reward (🐰 per ad)</label>
+                    <Input type="number" min={0} max={1000} value={c.reward}
+                      onChange={e => update(n.key, { reward: Math.max(0, Number(e.target.value || 0)) })}
+                      className="h-8 text-xs" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Max: <b>{(c.slots || 0) * (c.reward || 0)} 🐰</b></p>
+              </div>
+            );
+          })}
+        </div>
+        <Button className="w-full h-9 text-xs bg-gradient-gold text-primary-foreground mt-3" onClick={save} disabled={loading}>
+          {loading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Settings className="w-3 h-3 mr-1" />}
+          Save Ads Config
+        </Button>
+      </div>
+    </div>
+  );
+}
