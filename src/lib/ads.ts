@@ -10,8 +10,8 @@ const MIN_SECONDS: Record<string, number> = {
   gigapub: 15,
 };
 
-export const ADSGRAM_BLOCK_1 = "int-34882"; // 17s
-export const ADSGRAM_BLOCK_2 = "34881";     // 33s
+export const ADSGRAM_BLOCK_1 = "int-3482"; // 17s
+export const ADSGRAM_BLOCK_2 = "3481";     // 33s
 export const MONETAG_ZONE = "11090694";
 export const MONETIX_ID = "MX-38D29668";
 export const ADEXIUM_WID = "de7a9891-5239-4120-80ee-4c3050e7b0ae";
