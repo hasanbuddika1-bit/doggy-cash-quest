@@ -132,9 +132,8 @@ export async function showGigapubAd(): Promise<number> {
 // Try a random network; if it fails, rotate through the remaining pool.
 // Only resolves once an ad has actually been displayed.
 export async function showRandomAd(): Promise<void> {
-  export async function showRandomAd() {
-  return await showAdsgramBlock1();
-  }
+  const pool: Array<() => Promise<number>> = [
+    showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showMonetixAd, showGigapubAd,
   ];
   // shuffle
   for (let i = pool.length - 1; i > 0; i--) {
