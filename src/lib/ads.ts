@@ -4,8 +4,8 @@
 const MIN_SECONDS: Record<string, number> = {
   adsgram_block1: 15,
   adsgram_block2: 30,
-  monetag: 15,
-  monetix: 8,
+  monetag: 5,
+  monetix: 4,
   adexium: 8,
   gigapub: 15,
 };
