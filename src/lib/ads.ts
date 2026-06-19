@@ -2,8 +2,8 @@
 // Each function resolves with watch duration in seconds (rounded).
 
 const MIN_SECONDS: Record<string, number> = {
-  adsgram_block1: 17,
-  adsgram_block2: 33,
+  adsgram_block1: 15,
+  adsgram_block2: 30,
   monetag: 15,
   monetix: 8,
   adexium: 8,
