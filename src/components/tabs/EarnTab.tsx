@@ -43,7 +43,7 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
         <GuideButton title="Earn Guide" steps={[
           "🏆 Challenges: Reach weekly tiers (refers & ads) and claim — resets Sun 24:00 UTC.",
           "👆 Clicks: View a sponsor link 10s → earn 5 🐰. Max 2/hour.",
-          "👥 Refer: Share your link. Pending → Half-Active (25🐰) → Active (+50🐰 & 10% commission).",
+          "👥 Refer: Share your link. Pending → Half-Active (50🐰) → Active (+100🐰 & 10% commission).",
           "🎁 Reward Code: Codes are posted in our community channel — paste & claim.",
         ]} />
       </div>
@@ -189,8 +189,8 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
       >
         <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-4xl inline-block">👥</motion.span>
         <p className="text-xs text-muted-foreground mb-1 mt-2">Total: {referrals.length} • Counted: {half} • Active: {active}</p>
-        <p className="text-2xl font-display font-bold text-gradient-bunny">25 🐰 + 50 🐰 + 10%</p>
-        <p className="text-[11px] text-muted-foreground mt-1">Main done → 25 🐰 • Partner done → +50 🐰 & commission</p>
+        <p className="text-2xl font-display font-bold text-gradient-bunny">50 🐰 + 100 🐰 + 10%</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Main done → 50 🐰 • Partner done → +100 🐰 & commission</p>
       </motion.div>
 
       <div className="bg-card rounded-xl p-3 border border-bunny-pink/20">
