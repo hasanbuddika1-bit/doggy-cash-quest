@@ -11,9 +11,9 @@ const MINI_APP_URL = 'https://doggy-cash-quest.lovable.app';
 const BOT_USERNAME = 'Bunnyearnbot';
 const COMMUNITY_CHANNEL = '@bunnyearnhub';
 const PAYMENT_CHANNEL = '@bunnyearnhubpay';
-const REFERRAL_MAIN_REWARD = 50;
-const REFERRAL_PARTNER_REWARD = 100;
-const REFERRAL_COMMISSION_RATE = 0.10;
+const REFERRAL_MAIN_REWARD = 25;
+const REFERRAL_PARTNER_REWARD = 50;
+const REFERRAL_COMMISSION_RATE = 0.05;
 
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
@@ -354,7 +354,7 @@ Deno.serve(async (req) => {
       const txExplorer = isTon
         ? `https://tonviewer.com/transaction/${encodeURIComponent(txClean)}`
         : `https://explorer.aptoslabs.com/txn/${encodeURIComponent(txClean)}?network=mainnet`;
-      const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
+      const methodLabel = isTon ? '🔵 TON (GRAM)' : '🟢 USDT (Aptos)';
       const paidLine = isTon ? `🪙 Paid: <b>${tonAmt} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Paid: <b>$${netUsdt.toFixed(4)} USDT</b>`;
       const safeWallet = escHtml(w.wallet_address);
       const safeTx = escHtml(txClean);
@@ -475,7 +475,7 @@ Deno.serve(async (req) => {
       await supabase.from('users').update({ balance: Number(user.balance) + earnedAmount }).eq('id', user_id);
       await addHistory(supabase, user_id, 'ad', earnedAmount, '📺 Ad Reward', `${netName} ad #${adIndex}`);
 
-      // Active referral commission: 10% of the ad earning goes to referrer
+      // Active referral commission: 5% of the ad earning goes to referrer
       if (user.referrer_id) {
         const { data: rel } = await supabase.from('referrals').select('id, status, commission_earned').eq('referrer_id', user.referrer_id).eq('referee_id', user_id).maybeSingle();
         if (rel?.status === 'active') {
@@ -493,7 +493,7 @@ Deno.serve(async (req) => {
     if (action === 'update_wallet') {
       const { user_id, wallet_address, method } = body;
       const update: any = {};
-      if (method === 'ton') update.ton_address = wallet_address;
+      if (method === 'ton (gram)') update.ton(gram)_address = wallet_address;
       else { update.wallet_address = wallet_address; update.aptos_address = wallet_address; }
       await supabase.from('users').update(update).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
