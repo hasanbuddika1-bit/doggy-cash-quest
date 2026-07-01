@@ -194,13 +194,26 @@ Deno.serve(async (req) => {
         }
 
         if (referrer_id && !sameIpBlock) {
-          await supabase.from('referrals').insert({ referrer_id, referee_id: user.id, verified: false, status: 'pending' });
-          // Notify referrer immediately (pending)
-          const { data: ref } = await supabase.from('users').select('telegram_id').eq('id', referrer_id).single();
+          const { data: referral } = await supabase.from('referrals').insert({
+            referrer_id,
+            referee_id: user.id,
+            verified: true,
+            verified_at: new Date().toISOString(),
+            reward_claimed: true,
+            reward_amount: REFERRAL_JOIN_REWARD,
+            status: 'joined',
+          }).select().single();
+          const { data: ref } = await supabase.from('users').select('id, balance, telegram_id').eq('id', referrer_id).single();
+          if (ref?.id) {
+            await supabase.from('users').update({ balance: Number(ref.balance || 0) + REFERRAL_JOIN_REWARD }).eq('id', ref.id);
+            await addHistory(supabase, ref.id, 'referral', REFERRAL_JOIN_REWARD, '👥 Referral Joined', `@${username || first_name || 'friend'} joined`, { referee_id: user.id, referral_id: referral?.id });
+          }
           if (ref?.telegram_id) {
             await sendTelegram('sendMessage', {
               chat_id: ref.telegram_id,
-              text: `👥 New referral joined!\n\n@${escHtml(username || first_name || 'someone')} just joined via your link (status: ⏳ Pending).\n\nThey'll unlock 50 🐰 for you when they complete all Main tasks, +100 🐰 + 10% commission when they finish Partner tasks too!`,
+              text: `👥🐰 <b>New Referral Joined!</b>\n\nFriend: @${escHtml(username || first_name || 'someone')}\n✅ Join reward: <b>+${REFERRAL_JOIN_REWARD} Bunny</b>\n\nNext rewards:\n📺 Day 1: watch 10 ads = +${REFERRAL_DAY1_REWARD} 🐰\n📺 Day 2: watch 10 ads = +${REFERRAL_DAY2_REWARD} 🐰\n\nTotal possible: <b>150 Bunny</b>\n⏳ Must finish within 48 hours, otherwise marked as fake/expired referral.`,
+              parse_mode: 'HTML',
+              reply_markup: JSON.stringify({ inline_keyboard: [[miniAppButton('👥 View Referral')]] }),
             }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
           }
         }
@@ -338,9 +351,6 @@ Deno.serve(async (req) => {
         await supabase.from('users').update(updates).eq('id', user_id);
       }
       if (credited > 0) await addHistory(supabase, user_id, 'task', credited, '📋 Task Reward', task.title || 'Task completed');
-
-      // Advance referrer status if applicable
-      await advanceReferralForUser(supabase, user_id, LOVABLE_API_KEY, TELEGRAM_API_KEY);
 
       return new Response(JSON.stringify({
         success: true,
@@ -487,26 +497,15 @@ Deno.serve(async (req) => {
       await supabase.from('users').update({ balance: Number(user.balance) + earnedAmount }).eq('id', user_id);
       await addHistory(supabase, user_id, 'ad', earnedAmount, '📺 Ad Reward', `${netName} ad #${adIndex}`);
 
-      // Active referral commission: 5% of the ad earning goes to referrer
-      if (user.referrer_id) {
-        const { data: rel } = await supabase.from('referrals').select('id, status, commission_earned').eq('referrer_id', user.referrer_id).eq('referee_id', user_id).maybeSingle();
-        if (rel?.status === 'active') {
-          const commission = Math.max(1, Math.floor(earnedAmount * REFERRAL_COMMISSION_RATE));
-          const { data: ref } = await supabase.from('users').select('balance').eq('id', user.referrer_id).single();
-          if (ref) {
-            await supabase.from('users').update({ balance: Number(ref.balance) + commission }).eq('id', user.referrer_id);
-            await supabase.from('referrals').update({ commission_earned: Number(rel.commission_earned || 0) + commission }).eq('id', rel.id);
-          }
-        }
-      }
+      await evaluateReferralAdStages(supabase, user_id, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'update_wallet') {
       const { user_id, wallet_address, method } = body;
       const update: any = {};
-      if (method === 'ton (gram)') update.ton_address = wallet_address;
-      else { update.wallet_address = wallet_address; update.aptos_address = wallet_address; }
+      if (method === 'ton' || method === 'gram' || method === 'ton (gram)') update.ton_address = wallet_address;
+      else { update.wallet_address = wallet_address; update.aptos_address = null; }
       await supabase.from('users').update(update).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
