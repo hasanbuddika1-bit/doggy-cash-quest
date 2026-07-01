@@ -451,7 +451,16 @@ Deno.serve(async (req) => {
 
     if (action === 'admin_broadcast') {
       const { text, image_url, button_text, button_url } = body;
-      const { data: users } = await supabase.from('users').select('telegram_id').eq('banned', false);
+      const users: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data } = await supabase.from('users').select('telegram_id').eq('banned', false).range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        users.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
       const hasEmoji = /[\p{Emoji}]/u.test(String(text || ''));
       const finalText = hasEmoji ? text : `📢 ${text} 🐰💸`;
       const buildBody = (chatId: number | string) => {
@@ -465,15 +474,15 @@ Deno.serve(async (req) => {
       };
       const method = image_url ? 'sendPhoto' : 'sendMessage';
       try { await sendTelegram(method, buildBody(COMMUNITY_CHANNEL), LOVABLE_API_KEY, TELEGRAM_API_KEY); } catch {}
-      const recipients = (users || []).map(u => u.telegram_id);
+      const recipients = (users || []).map(u => u.telegram_id).filter(Boolean);
       const BATCH_SIZE = 25;
       let sent = 0;
       for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
         const batch = recipients.slice(i, i + BATCH_SIZE);
         const results = await Promise.allSettled(batch.map(id => sendTelegram(method, buildBody(id), LOVABLE_API_KEY, TELEGRAM_API_KEY)));
-        sent += results.filter(r => r.status === 'fulfilled').length;
+        sent += results.filter(r => r.status === 'fulfilled' && (r.value as any)?.ok !== false).length;
       }
-      return new Response(JSON.stringify({ success: true, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, sent, total: recipients.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Process ad reward (multi-network, 24h cooldown per slot per network)
