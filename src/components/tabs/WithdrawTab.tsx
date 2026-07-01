@@ -30,7 +30,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const isTon = method === 'ton';
   const balance = Number(user?.balance || 0);
   const rate = Number(settings.doggy_to_usdt_rate || 0.0001);
-  const bep20Enabled = settings.bep20_enabled !== 'false' && settings.aptos_enabled !== 'false';
+  const bep20Enabled = settings.bep20_enabled !== 'false';
   const tonEnabled = settings.ton_enabled !== 'false';
 
   const feeFixed = isTon ? Number(settings.ton_fee_fixed || 0.005) : Number(settings.withdraw_fee_fixed || 0.01);
@@ -69,7 +69,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     const todayISO = today.toISOString();
     const [adsRes, refsRes, mainTasksRes, partnerTasksRes, completionsRes] = await Promise.all([
       supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
-      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).in("status", ["half_active", "active"]),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("status", "active"),
       supabase.from("tasks").select("id").eq("active", true).eq("category", "main").eq("gives_reward", true),
       supabase.from("tasks").select("id").eq("active", true).eq("category", "partner").eq("gives_reward", true),
       supabase.from("task_completions").select("task_id").eq("user_id", userId),
@@ -108,7 +108,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     if (hasPending) { toast.error("You have a pending withdrawal"); return; }
     if (!user?.withdraw_unlocked) {
       if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads`); return; }
-      if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} half-active/active referrals`); return; }
+      if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} active referrals`); return; }
       if (stats.mainDone < stats.mainTotal) { toast.error("Complete all Main tasks first"); return; }
       if (stats.partnerDone < stats.partnerTotal) { toast.error("Complete all Partner tasks first"); return; }
     }
