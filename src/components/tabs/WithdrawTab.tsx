@@ -244,7 +244,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
             const wIsTon = w.method === 'ton';
             const explorer = w.tx_hash ? (wIsTon
               ? `https://tonviewer.com/transaction/${w.tx_hash}`
-              : `https://explorer.aptoslabs.com/txn/${w.tx_hash}?network=mainnet`) : null;
+              : `https://bscscan.com/tx/${w.tx_hash}`) : null;
             return (
               <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                 className="flex items-center justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2"
@@ -253,11 +253,11 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
                   <div className="flex items-center gap-1.5">
                     <img src={wIsTon ? tonLogo : usdtLogo} alt="" className="w-4 h-4 object-contain" />
                     <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🐰</p>
-                    <span className="text-[10px] text-muted-foreground">{wIsTon ? 'TON' : 'USDT'}</span>
+                    <span className="text-[10px] text-muted-foreground">{wIsTon ? 'GRAM' : 'USDT BEP20'}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${wFee.toFixed(4)}</p>
                   <p className="text-[10px] text-bunny-green font-bold">
-                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} TON` : `$${wNet.toFixed(4)} USDT`}
+                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} GRAM` : `$${wNet.toFixed(4)} USDT`}
                   </p>
                   <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</p>
                   {explorer && (
