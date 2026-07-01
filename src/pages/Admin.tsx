@@ -996,6 +996,49 @@ function BroadcastTab() {
   );
 }
 
+function MaintenanceTab() {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    const { data } = await supabase.from("app_settings").select("value").eq("key", "maintenance_mode").maybeSingle();
+    setEnabled(data?.value === "true");
+  }
+
+  async function save(next: boolean) {
+    setLoading(true);
+    try {
+      await adminAction("update_settings", { key: "maintenance_mode", value: next ? "true" : "false" });
+      setEnabled(next);
+      toast.success(next ? "🛠️ Maintenance mode ON" : "✅ Maintenance mode OFF");
+    } catch {
+      toast.error("Failed to update maintenance mode");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <div className={`rounded-xl p-4 border ${enabled ? "bg-amber-500/10 border-amber-500/50" : "bg-card border-border"}`}>
+        <p className="text-sm font-bold mb-1">🛠️ Maintenance Mode</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          When ON, all non-admin users only see the update screen inside the mini app. Admin can still open everything.
+        </p>
+        <Button
+          disabled={loading}
+          onClick={() => save(!enabled)}
+          className={`w-full h-9 text-xs font-bold ${enabled ? "bg-destructive text-destructive-foreground" : "bg-gradient-gold text-primary-foreground"}`}
+        >
+          {loading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Settings className="w-3 h-3 mr-1" />}
+          {enabled ? "Turn OFF Maintenance" : "Turn ON Maintenance"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SettingsTab() {
   const [settings, setSettings] = useState<any[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
