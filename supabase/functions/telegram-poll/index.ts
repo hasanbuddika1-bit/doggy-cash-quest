@@ -54,7 +54,7 @@ async function handleStart(chatId: number, firstName: string, payload: string, l
     return;
   }
 
-  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 <b>Earn Bunny</b> by watching ads, completing tasks, watching ads, completing tasks & referring friends.\n💵 100 🐰 = 0.01 USDT\n🚀 Instant withdrawals — USDT (BEP20) / GRAM (ex TON)\n\n👇 Tap below to open the mini app and start earning!`;
+  const caption = `🐰 <b>Welcome to Bunny Earn Hub, ${firstName || 'Friend'}!</b> 💸\n\n🥕 <b>Earn Bunny</b> by watching ads, completing tasks & referring friends.\n💵 100 🐰 = 0.01 USDT\n🚀 Instant withdrawals — USDT (BEP20) / GRAM (ex TON)\n\n👇 Tap below to open the mini app and start earning!`;
   const photoResp = await tg('sendPhoto', {
     chat_id: chatId,
     photo: WELCOME_PHOTO,
