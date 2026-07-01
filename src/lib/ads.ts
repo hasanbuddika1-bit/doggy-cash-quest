@@ -27,106 +27,122 @@ export class AdNotShownError extends Error {
   }
 }
 
+let adInProgress = false;
+async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T> {
+  if (adInProgress) throw new AdNotShownError(network, "Another ad is already playing");
+  adInProgress = true;
+  try {
+    return await fn();
+  } finally {
+    adInProgress = false;
+  }
+}
+
 export async function showAdsgram(blockId: string, minSeconds: number): Promise<number> {
-  const Adsgram = (window as any).Adsgram;
-  if (!Adsgram?.init) throw new AdNotShownError("adsgram", "SDK not loaded");
-  const ctrl = Adsgram.init({ blockId, debug: false });
-  const start = Date.now();
-  let shown = false;
-  try { await ctrl.show(); shown = true; } catch { /* user closed early */ }
-  const secs = Math.round((Date.now() - start) / 1000);
-  if (!shown && secs < 2) throw new AdNotShownError("adsgram");
-  if (secs < minSeconds) throw new AdClosedEarlyError(secs, minSeconds);
-  return secs;
+  return withSingleAd("adsgram", async () => {
+    const Adsgram = (window as any).Adsgram;
+    if (!Adsgram?.init) throw new AdNotShownError("adsgram", "SDK not loaded");
+    const ctrl = Adsgram.init({ blockId, debug: false });
+    const start = Date.now();
+    let shown = false;
+    try { await ctrl.show(); shown = true; } catch { /* user closed early / SDK rejected */ }
+    const secs = Math.round((Date.now() - start) / 1000);
+    if (!shown && secs < 2) throw new AdNotShownError("adsgram");
+    if (secs < minSeconds) throw new AdClosedEarlyError(secs, minSeconds);
+    return secs;
+  });
 }
 export const showAdsgramBlock1 = () => showAdsgram(ADSGRAM_BLOCK_1, MIN_SECONDS.adsgram_block1);
 export const showAdsgramBlock2 = () => showAdsgram(ADSGRAM_BLOCK_2, MIN_SECONDS.adsgram_block2);
 
 export async function showMonetagAd(): Promise<number> {
-  const fn = (window as any)[`show_${MONETAG_ZONE}`];
-  if (typeof fn !== "function") throw new AdNotShownError("monetag", "SDK not loaded");
-  const start = Date.now();
-  await new Promise<void>((resolve, reject) => {
-    try {
-      const p = fn();
-      if (p && typeof p.then === "function") {
-        p.then(() => resolve()).catch(() => resolve());
-        setTimeout(() => resolve(), 60000);
-      } else resolve();
-    } catch (e) { reject(e); }
+  return withSingleAd("monetag", async () => {
+    const fn = (window as any)[`show_${MONETAG_ZONE}`];
+    if (typeof fn !== "function") throw new AdNotShownError("monetag", "SDK not loaded");
+    const start = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      try {
+        const p = fn();
+        if (p && typeof p.then === "function") {
+          p.then(() => resolve()).catch(() => resolve());
+          setTimeout(() => resolve(), 60000);
+        } else resolve();
+      } catch (e) { reject(e); }
+    });
+    const secs = Math.round((Date.now() - start) / 1000);
+    if (secs < MIN_SECONDS.monetag) throw new AdClosedEarlyError(secs, MIN_SECONDS.monetag);
+    return secs;
   });
-  const secs = Math.round((Date.now() - start) / 1000);
-  if (secs < MIN_SECONDS.monetag) throw new AdClosedEarlyError(secs, MIN_SECONDS.monetag);
-  return secs;
 }
 
 export async function showAdexiumAd(): Promise<number> {
-  const AdexiumWidget = (window as any).AdexiumWidget;
-  if (typeof AdexiumWidget !== "function") throw new AdNotShownError("adexium", "SDK not loaded");
-  const widget = new AdexiumWidget({ wid: ADEXIUM_WID, adFormat: "interstitial" });
-  const start = Date.now();
-  let displayed = false;
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const done = () => { if (!settled) { settled = true; resolve(); } };
-    try {
-      // Try requestAd (newer SDK) → show → autoMode fallback
-      const candidate = widget.requestAd?.() ?? widget.show?.();
-      if (candidate && typeof candidate.then === "function") {
-        candidate.then(() => { displayed = true; done(); }).catch(() => done());
-      } else {
-        widget.autoMode?.();
-        // Poll: if interstitial DOM appears, assume displayed
-        const iv = setInterval(() => {
-          if (document.querySelector('[id*="adexium"],[class*="adexium"],iframe[src*="tgads"]')) {
-            displayed = true;
-          }
-        }, 500);
-        setTimeout(() => { clearInterval(iv); done(); }, 20000);
-      }
-      setTimeout(done, 60000);
-    } catch { done(); }
+  return withSingleAd("adexium", async () => {
+    const AdexiumWidget = (window as any).AdexiumWidget;
+    if (typeof AdexiumWidget !== "function") throw new AdNotShownError("adexium", "SDK not loaded");
+    const widget = new AdexiumWidget({ wid: ADEXIUM_WID, adFormat: "interstitial" });
+    const start = Date.now();
+    let displayed = false;
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const done = () => { if (!settled) { settled = true; resolve(); } };
+      try {
+        const candidate = widget.requestAd?.() ?? widget.show?.();
+        if (candidate && typeof candidate.then === "function") {
+          candidate.then(() => { displayed = true; done(); }).catch(() => done());
+        } else {
+          widget.autoMode?.();
+          const iv = setInterval(() => {
+            if (document.querySelector('[id*="adexium"],[class*="adexium"],iframe[src*="tgads"]')) displayed = true;
+          }, 500);
+          setTimeout(() => { clearInterval(iv); done(); }, 20000);
+        }
+        setTimeout(done, 60000);
+      } catch { done(); }
+    });
+    const secs = Math.round((Date.now() - start) / 1000);
+    if (!displayed && secs < MIN_SECONDS.adexium) throw new AdNotShownError("adexium");
+    if (secs < MIN_SECONDS.adexium) throw new AdClosedEarlyError(secs, MIN_SECONDS.adexium);
+    return secs;
   });
-  const secs = Math.round((Date.now() - start) / 1000);
-  if (!displayed && secs < MIN_SECONDS.adexium) throw new AdNotShownError("adexium");
-  if (secs < MIN_SECONDS.adexium) throw new AdClosedEarlyError(secs, MIN_SECONDS.adexium);
-  return secs;
 }
 
 export async function showMonetixAd(): Promise<number> {
-  const showRewardAd = (window as any).showRewardAd;
-  if (typeof showRewardAd !== "function") throw new AdNotShownError("monetix", "SDK not loaded");
-  const start = Date.now();
-  let status = "";
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const done = () => { if (!settled) { settled = true; resolve(); } };
-    try {
-      showRewardAd((res: any) => { status = res?.status || ""; done(); });
-      setTimeout(done, 60000);
-    } catch { done(); }
+  return withSingleAd("monetix", async () => {
+    const showRewardAd = (window as any).showRewardAd;
+    if (typeof showRewardAd !== "function") throw new AdNotShownError("monetix", "SDK not loaded");
+    const start = Date.now();
+    let status = "";
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const done = () => { if (!settled) { settled = true; resolve(); } };
+      try {
+        showRewardAd((res: any) => { status = res?.status || ""; done(); });
+        setTimeout(done, 60000);
+      } catch { done(); }
+    });
+    const secs = Math.round((Date.now() - start) / 1000);
+    if (!status && secs < 2) throw new AdNotShownError("monetix");
+    if (status && !["completed", "closed"].includes(status)) throw new AdNotShownError("monetix", `status=${status}`);
+    if (secs < MIN_SECONDS.monetix) throw new AdClosedEarlyError(secs, MIN_SECONDS.monetix);
+    return secs;
   });
-  const secs = Math.round((Date.now() - start) / 1000);
-  // If callback fired in <1s with no status, assume SDK rejected silently
-  if (!status && secs < 2) throw new AdNotShownError("monetix");
-  if (status && !["completed", "closed"].includes(status)) throw new AdNotShownError("monetix", `status=${status}`);
-  if (secs < MIN_SECONDS.monetix) throw new AdClosedEarlyError(secs, MIN_SECONDS.monetix);
-  return secs;
 }
 
 export async function showGigapubAd(): Promise<number> {
-  const showGiga = (window as any).showGiga;
-  if (typeof showGiga !== "function") throw new AdNotShownError("gigapub", "SDK not loaded");
-  const start = Date.now();
-  await new Promise<void>((resolve) => {
-    try {
-      showGiga().then(() => resolve()).catch(() => resolve());
-      setTimeout(() => resolve(), 60000);
-    } catch { resolve(); }
+  return withSingleAd("gigapub", async () => {
+    const showGiga = (window as any).showGiga;
+    if (typeof showGiga !== "function") throw new AdNotShownError("gigapub", "SDK not loaded");
+    const start = Date.now();
+    await new Promise<void>((resolve) => {
+      try {
+        showGiga().then(() => resolve()).catch(() => resolve());
+        setTimeout(() => resolve(), 60000);
+      } catch { resolve(); }
+    });
+    const secs = Math.round((Date.now() - start) / 1000);
+    if (secs < MIN_SECONDS.gigapub) throw new AdClosedEarlyError(secs, MIN_SECONDS.gigapub);
+    return secs;
   });
-  const secs = Math.round((Date.now() - start) / 1000);
-  if (secs < MIN_SECONDS.gigapub) throw new AdClosedEarlyError(secs, MIN_SECONDS.gigapub);
-  return secs;
 }
 
 // Reward-claim ads only use ONE network per claim: Adsgram OR GigaPub.
