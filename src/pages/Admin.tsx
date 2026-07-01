@@ -8,6 +8,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { adminAction, adminLogin } from "@/lib/api";
 import { toast } from "sonner";
 
+async function fetchAllRows(table: string, select = "*") {
+  const sb: any = supabase;
+  const out: any[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await sb.from(table).select(select).range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
 export default function AdminPanel() {
   const [authed, setAuthed] = useState(false);
   const [username, setUsername] = useState("");
@@ -106,7 +121,7 @@ function UsersTab() {
         fetchAllRows("game_plays", "user_id, bet, payout"),
         fetchAllRows("short_link_claims", "user_id, amount, status"),
       ]);
-      const taskIds = [...new Set((tasks || []).filter((r: any) => idSet.has(r.user_id)).map((r: any) => r.task_id).filter(Boolean))];
+      const taskIds = [...new Set((tasks || []).filter((r: any) => idSet.has(r.user_id)).map((r: any) => String(r.task_id || '')).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
       const taskValues: Record<string, number> = {};
       if (taskIds.length) {
