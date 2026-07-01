@@ -40,7 +40,7 @@ export async function claimRewardCode(userId: string, code: string) {
   return callEdgeFunction("telegram-bot", { action: "claim_reward_code", user_id: userId, code });
 }
 
-export async function submitWithdrawal(userId: string, amount: number, walletAddress: string, method: 'usdt_aptos' | 'ton' = 'usdt_aptos') {
+export async function submitWithdrawal(userId: string, amount: number, walletAddress: string, method: 'usdt_bep20' | 'ton' = 'usdt_bep20') {
   return callEdgeFunction("process-withdrawal", { user_id: userId, amount, wallet_address: walletAddress, method });
 }
 
@@ -63,7 +63,7 @@ export async function processAdReward(userId: string, adIndex: number, earned: n
   return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned, watch_seconds: watchSeconds, network });
 }
 
-export async function updateWallet(userId: string, walletAddress: string, method: 'usdt_aptos' | 'ton' = 'usdt_aptos') {
+export async function updateWallet(userId: string, walletAddress: string, method: 'usdt_bep20' | 'ton' = 'usdt_bep20') {
   return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress, method });
 }
 

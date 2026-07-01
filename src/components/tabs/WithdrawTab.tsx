@@ -9,16 +9,15 @@ import { showRandomAd } from "@/lib/ads";
 import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import tonLogo from "@/assets/ton-logo.png";
-import aptosLogo from "@/assets/aptos-logo.png";
 import { GuideButton } from "@/components/GuideButton";
 
 interface WithdrawTabProps { userId: string; user: any; }
 
-type Method = 'usdt_aptos' | 'ton';
+type Method = 'usdt_bep20' | 'ton';
 
 export function WithdrawTab({ userId, user }: WithdrawTabProps) {
-  const [method, setMethod] = useState<Method>('usdt_aptos');
-  const [aptosAddress, setAptosAddress] = useState(user?.aptos_address || user?.wallet_address || "");
+  const [method, setMethod] = useState<Method>('usdt_bep20');
+  const [bep20Address, setBep20Address] = useState(user?.wallet_address || "");
   const [tonAddress, setTonAddress] = useState(user?.ton_address || "");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +30,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const isTon = method === 'ton';
   const balance = Number(user?.balance || 0);
   const rate = Number(settings.doggy_to_usdt_rate || 0.0001);
-  const aptosEnabled = settings.aptos_enabled !== 'false';
+  const bep20Enabled = settings.bep20_enabled !== 'false';
   const tonEnabled = settings.ton_enabled !== 'false';
 
   const feeFixed = isTon ? Number(settings.ton_fee_fixed || 0.005) : Number(settings.withdraw_fee_fixed || 0.01);
@@ -47,8 +46,8 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const maxDoggy = Math.floor(maxWithdrawUsdt / rate);
   const tonAmount = isTon && tonPrice > 0 ? netUsdt / tonPrice : 0;
 
-  const walletAddress = isTon ? tonAddress : aptosAddress;
-  const setWalletAddress = isTon ? setTonAddress : setAptosAddress;
+  const walletAddress = isTon ? tonAddress : bep20Address;
+  const setWalletAddress = isTon ? setTonAddress : setBep20Address;
 
   useEffect(() => {
     loadHistory(); loadSettings(); loadStats(); refreshTonPrice();
@@ -70,7 +69,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     const todayISO = today.toISOString();
     const [adsRes, refsRes, mainTasksRes, partnerTasksRes, completionsRes] = await Promise.all([
       supabase.from("ad_watches").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", todayISO),
-      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).in("status", ["half_active", "active"]),
+      supabase.from("referrals").select("id", { count: "exact", head: true }).eq("referrer_id", userId).eq("status", "active"),
       supabase.from("tasks").select("id").eq("active", true).eq("category", "main").eq("gives_reward", true),
       supabase.from("tasks").select("id").eq("active", true).eq("category", "partner").eq("gives_reward", true),
       supabase.from("task_completions").select("task_id").eq("user_id", userId),
@@ -95,12 +94,12 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   async function saveWallet() {
     if (!walletAddress.trim()) { toast.error("Enter address"); return; }
     await updateWallet(userId, walletAddress, method);
-    toast.success(`💾 ${isTon ? 'TON' : 'Aptos'} address saved!`);
+    toast.success(`💾 ${isTon ? 'GRAM (ex TON)' : 'USDT (BEP20)'} address saved!`);
   }
 
   async function handleWithdraw() {
-    if (isTon && !tonEnabled) { toast.error("TON withdrawals disabled"); return; }
-    if (!isTon && !aptosEnabled) { toast.error("USDT (Aptos) withdrawals disabled"); return; }
+    if (isTon && !tonEnabled) { toast.error("GRAM withdrawals disabled"); return; }
+    if (!isTon && !bep20Enabled) { toast.error("USDT (BEP20) withdrawals disabled"); return; }
     if (!walletAddress.trim()) { toast.error("Enter wallet address"); return; }
     const minAmount = Number(settings.min_withdraw || 500);
     if (Number(amount) < minAmount) { toast.error(`Minimum ${minAmount} Bunny`); return; }
@@ -109,7 +108,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     if (hasPending) { toast.error("You have a pending withdrawal"); return; }
     if (!user?.withdraw_unlocked) {
       if (stats.dailyAds < dailyAdsReq) { toast.error(`Need ${dailyAdsReq} daily ads`); return; }
-      if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} half-active/active referrals`); return; }
+      if (stats.totalRefs < totalRefReq) { toast.error(`Need ${totalRefReq} active referrals`); return; }
       if (stats.mainDone < stats.mainTotal) { toast.error("Complete all Main tasks first"); return; }
       if (stats.partnerDone < stats.partnerTotal) { toast.error("Complete all Partner tasks first"); return; }
     }
@@ -159,10 +158,10 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
           className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30 flex-1 mr-2"
         >
           <p className="font-display font-bold text-gradient-bunny text-sm">💸 Withdraw Bunny</p>
-          <p className="text-[11px] text-muted-foreground">Choose USDT (Aptos) or TON</p>
+          <p className="text-[11px] text-muted-foreground">Choose USDT (BEP20) or GRAM (ex TON)</p>
         </motion.div>
         <GuideButton title="Withdraw Guide" steps={[
-          "Save your USDT or TON wallet address first.",
+          "Save your USDT (BEP20) or GRAM (ex TON) wallet address first.",
           "Meet the requirements: 40 daily ads, 2 active refers, all Main & Partner tasks.",
           `Minimum ${settings.min_withdraw || 500} 🐰 per request.`,
           "Submit, watch a quick ad, then wait for admin approval.",
@@ -179,18 +178,18 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
       </motion.div>
 
       <div className="flex gap-2">
-        <MethodCard id="usdt_aptos" label="USDT" sublabel="Aptos Network" logo={usdtLogo} enabled={aptosEnabled} />
-        <MethodCard id="ton" label="TON" sublabel={tonPrice ? `$${tonPrice.toFixed(2)}/TON` : 'The Open Network'} logo={tonLogo} enabled={tonEnabled} />
+        <MethodCard id="usdt_bep20" label="USDT" sublabel="BEP20 Network" logo={usdtLogo} enabled={bep20Enabled} />
+        <MethodCard id="ton" label="GRAM" sublabel={tonPrice ? `$${tonPrice.toFixed(2)}/GRAM` : 'ex TON Network'} logo={tonLogo} enabled={tonEnabled} />
       </div>
 
       <div className="bg-card rounded-xl p-4 border border-bunny-pink/15 space-y-2">
         <label className="text-xs text-muted-foreground flex items-center gap-2 font-bold">
-          <img src={isTon ? tonLogo : aptosLogo} alt="" className="w-4 h-4 object-contain" />
-          {isTon ? 'TON Wallet Address' : 'USDT Wallet (APTOS Network)'}
+          <img src={isTon ? tonLogo : usdtLogo} alt="" className="w-4 h-4 object-contain" />
+          {isTon ? 'GRAM (ex TON) Wallet Address' : 'USDT Wallet (BEP20 Network)'}
         </label>
         <div className="flex gap-2">
           <Input value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)}
-            placeholder={isTon ? 'EQ... or UQ...' : 'Enter Aptos address (0x...)'} className="h-9 text-xs" />
+            placeholder={isTon ? 'EQ... or UQ...' : 'Enter BEP20/BSC address (0x...)'} className="h-9 text-xs" />
           <Button size="sm" variant="outline" className="h-9 text-xs border-bunny-pink/30" onClick={saveWallet}>Save</Button>
         </div>
       </div>
@@ -203,7 +202,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
             <p className="text-xs text-muted-foreground">Gross: ${rawUsdt.toFixed(4)} USDT</p>
             <p className="text-xs text-destructive">Fee: -${fee.toFixed(4)} (${feeFixed} + {feePercent}%)</p>
             {isTon ? (
-              <p className="text-xs text-blue-400 font-bold">🪙 Receive: <b>{tonAmount.toFixed(6)} TON</b> (~${netUsdt.toFixed(4)})</p>
+              <p className="text-xs text-blue-400 font-bold">🪙 Receive: <b>{tonAmount.toFixed(6)} GRAM</b> (~${netUsdt.toFixed(4)})</p>
             ) : (
               <p className="text-xs text-bunny-green font-bold">Receive: ${netUsdt.toFixed(4)} USDT</p>
             )}
@@ -232,7 +231,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
           className="w-full h-14 bg-gradient-bunny text-primary-foreground font-bold text-lg rounded-2xl glow-pink"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Wallet className="w-5 h-5 mr-2" />}
-          Withdraw via {isTon ? 'TON' : 'USDT (Aptos)'}
+          Withdraw via {isTon ? 'GRAM' : 'USDT (BEP20)'}
         </Button>
       </motion.div>
 
@@ -245,7 +244,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
             const wIsTon = w.method === 'ton';
             const explorer = w.tx_hash ? (wIsTon
               ? `https://tonviewer.com/transaction/${w.tx_hash}`
-              : `https://explorer.aptoslabs.com/txn/${w.tx_hash}?network=mainnet`) : null;
+              : `https://bscscan.com/tx/${w.tx_hash}`) : null;
             return (
               <motion.div key={w.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                 className="flex items-center justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2"
@@ -254,11 +253,11 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
                   <div className="flex items-center gap-1.5">
                     <img src={wIsTon ? tonLogo : usdtLogo} alt="" className="w-4 h-4 object-contain" />
                     <p className="text-sm font-bold">{Number(w.amount).toFixed(0)} 🐰</p>
-                    <span className="text-[10px] text-muted-foreground">{wIsTon ? 'TON' : 'USDT'}</span>
+                    <span className="text-[10px] text-muted-foreground">{wIsTon ? 'GRAM' : 'USDT BEP20'}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${wFee.toFixed(4)}</p>
                   <p className="text-[10px] text-bunny-green font-bold">
-                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} TON` : `$${wNet.toFixed(4)} USDT`}
+                    Net: {wIsTon && w.ton_amount ? `${Number(w.ton_amount).toFixed(6)} GRAM` : `$${wNet.toFixed(4)} USDT`}
                   </p>
                   <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</p>
                   {explorer && (

@@ -8,6 +8,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { adminAction, adminLogin } from "@/lib/api";
 import { toast } from "sonner";
 
+async function fetchAllRows(table: string, select = "*") {
+  const sb: any = supabase;
+  const out: any[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await sb.from(table).select(select).range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
 export default function AdminPanel() {
   const [authed, setAuthed] = useState(false);
   const [username, setUsername] = useState("");
@@ -43,11 +58,11 @@ export default function AdminPanel() {
           <TabsTrigger value="tgtasks" className="text-xs">📢 TG Tasks</TabsTrigger>
           <TabsTrigger value="submissions" className="text-xs">📤 Submissions</TabsTrigger>
           <TabsTrigger value="withdrawals" className="text-xs">💸 Withdrawals</TabsTrigger>
-          <TabsTrigger value="shortlinks" className="text-xs">🔗 Short Links</TabsTrigger>
           <TabsTrigger value="ads" className="text-xs">📺 Ads</TabsTrigger>
           <TabsTrigger value="codes" className="text-xs">🎁 Codes</TabsTrigger>
           <TabsTrigger value="channels" className="text-xs">📢 Channels</TabsTrigger>
           <TabsTrigger value="broadcast" className="text-xs">📡 Broadcast</TabsTrigger>
+          <TabsTrigger value="maintenance" className="text-xs">🛠️ Maintenance</TabsTrigger>
           <TabsTrigger value="settings" className="text-xs">⚙️ Settings</TabsTrigger>
         </TabsList>
 
@@ -57,11 +72,11 @@ export default function AdminPanel() {
         <TabsContent value="tgtasks"><TasksTab taskType="one_click" /></TabsContent>
         <TabsContent value="submissions"><SubmissionsTab /></TabsContent>
         <TabsContent value="withdrawals"><WithdrawalsTab /></TabsContent>
-        <TabsContent value="shortlinks"><ShortLinksAdminTab /></TabsContent>
         <TabsContent value="ads"><AdsManageTab /></TabsContent>
         <TabsContent value="codes"><CodesTab /></TabsContent>
         <TabsContent value="channels"><ChannelsTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
+        <TabsContent value="maintenance"><MaintenanceTab /></TabsContent>
         <TabsContent value="settings"><SettingsTab /></TabsContent>
       </Tabs>
     </div>
@@ -94,16 +109,20 @@ function UsersTab() {
     if (ids.length) {
       const { data: bonusSetting } = await supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single();
       const welcomeBonus = Number(bonusSetting?.value || 50);
-      const [ads, clicks, tasks, refs, codes, withdrawals, weekly] = await Promise.all([
-        supabase.from("ad_watches").select("user_id, earned").in("user_id", ids),
-        supabase.from("clicks").select("user_id, earned").in("user_id", ids),
-        supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
-        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified, reward_claimed").in("referrer_id", ids),
-        supabase.from("reward_claims").select("user_id, amount").in("user_id", ids),
-        supabase.from("withdrawals").select("user_id, amount, status").in("user_id", ids),
-        supabase.from("weekly_challenge_claims").select("user_id, amount").in("user_id", ids),
+      const idSet = new Set(ids);
+      const [ads, clicks, taskSubs, taskCompletions, refs, codes, withdrawals, weekly, games, shorts] = await Promise.all([
+        fetchAllRows("ad_watches", "user_id, earned"),
+        fetchAllRows("clicks", "user_id, earned"),
+        fetchAllRows("task_submissions", "user_id, status, task_id"),
+        fetchAllRows("task_completions", "user_id, task_id"),
+        fetchAllRows("referrals", "referrer_id, reward_amount, commission_earned, verified, reward_claimed"),
+        fetchAllRows("reward_claims", "user_id, amount"),
+        fetchAllRows("withdrawals", "user_id, amount, status"),
+        fetchAllRows("weekly_challenge_claims", "user_id, amount"),
+        fetchAllRows("game_plays", "user_id, bet, payout"),
+        fetchAllRows("short_link_claims", "user_id, amount, status"),
       ]);
-      const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
+      const taskIds = [...new Set([...(taskSubs || []), ...(taskCompletions || [])].filter((r: any) => idSet.has(r.user_id)).map((r: any) => String(r.task_id || '')).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
       const taskValues: Record<string, number> = {};
       if (taskIds.length) {
@@ -114,25 +133,33 @@ function UsersTab() {
       ids.forEach((id) => {
         const u = all.find(x => x.id === id);
         const wb = u?.welcome_bonus_claimed ? welcomeBonus : 0;
-        counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawals: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: wb, earned: wb };
+        counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, games: 0, shorts: 0, withdrawals: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: wb, earned: wb };
       });
-      (ads.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
-      (clicks.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
-      (tasks.data || []).forEach((r: any) => {
+      (ads || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
+      (clicks || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
+      (taskSubs || []).forEach((r: any) => {
         if (!counts[r.user_id] || r.status !== "approved") return;
         const tv = taskValues[r.task_id] || 0;
         counts[r.user_id].earned += tv;
         taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
       });
-      (refs.data || []).forEach((r: any) => {
+      (taskCompletions || []).forEach((r: any) => {
+        if (!counts[r.user_id]) return;
+        const tv = taskValues[r.task_id] || 0;
+        counts[r.user_id].earned += tv;
+        taskTypes[r.task_id] === "one_click" || taskTypes[r.task_id] === "telegram_bot" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
+      });
+      (refs || []).forEach((r: any) => {
         if (!counts[r.referrer_id]) return;
         counts[r.referrer_id].refs++;
         if (r.verified && r.reward_claimed) counts[r.referrer_id].earned += Number(r.reward_amount || 0);
         if (r.verified) counts[r.referrer_id].earned += Number(r.commission_earned || 0);
       });
-      (codes.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (weekly.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (withdrawals.data || []).forEach((r: any) => {
+      (codes || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (weekly || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (games || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].games++; counts[r.user_id].earned += Number(r.payout || 0) - Number(r.bet || 0); } });
+      (shorts || []).forEach((r: any) => { if (counts[r.user_id] && r.status === 'claimed') { counts[r.user_id].shorts++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (withdrawals || []).forEach((r: any) => {
         if (!counts[r.user_id]) return;
         counts[r.user_id].withdrawals++;
         if (r.status === 'approved') counts[r.user_id].withdrawnDoggy += Number(r.amount || 0);
@@ -157,7 +184,7 @@ function UsersTab() {
       <p className="text-xs text-muted-foreground">Total: {users.length} users (sorted by balance)</p>
       <div className="space-y-2 max-h-[60vh] overflow-y-auto">
         {filtered.map((u) => {
-          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: 0, earned: 0 };
+          const act = activityCounts[u.id] || { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, games: 0, shorts: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: 0, earned: 0 };
           const bal = Number(u.balance || 0);
           const expected = act.earned - act.withdrawnDoggy - act.pendingDoggy;
           const diff = bal - expected;
@@ -171,7 +198,7 @@ function UsersTab() {
                 <p className="text-xs text-muted-foreground">Country: {u.country || 'Unknown'} | IP: {u.ip_address || 'N/A'}</p>
                 <p className="text-xs text-primary font-bold">{bal.toFixed(0)} 🐰 {suspicious && <span className="text-destructive">⚠️ Diff {diff >= 0 ? '+' : ''}{diff.toFixed(0)}</span>}</p>
                 <p className={`text-[10px] ${suspicious ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>Expected ≈ {expected.toFixed(0)} 🐰 (Earned {act.earned.toFixed(0)} − Withdrawn {act.withdrawnDoggy.toFixed(0)}{act.pendingDoggy ? ` − Pending ${act.pendingDoggy.toFixed(0)}` : ''})</p>
-                <p className="text-[10px] text-muted-foreground">🎁 {act.welcomeBonus} • 📺 {act.ads} • 🖱️ {act.clicks} • 📋 {act.adminTasks} • 📢 {act.telegramTasks} • 👥 {act.refs} • 🎟️ {act.codes} • 🏆 {act.weekly}</p>
+                <p className="text-[10px] text-muted-foreground">🎁 {act.welcomeBonus} • 📺 {act.ads} • 🖱️ {act.clicks} • 📋 {act.adminTasks} • 📢 {act.telegramTasks} • 👥 {act.refs} • 🎟️ {act.codes} • 🏆 {act.weekly} • 🎮 {act.games || 0} • 🔗 {act.shorts || 0}</p>
                 {u.suspension_reason && <p className="text-[10px] text-destructive">Reason: {u.suspension_reason}</p>}
                 <p className="text-[10px] text-muted-foreground">Access: {u.access_tasks_completed ? '✅' : '❌'} | Banned: {u.banned ? '🚫' : '✅'} | Withdraw: {u.withdraw_unlocked ? '🔓 Unlocked' : '🔒 Normal'}</p>
               </div>
@@ -221,6 +248,9 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   const [taskSubs, setTaskSubs] = useState<any[]>([]);
   const [rewardClaims, setRewardClaims] = useState<any[]>([]);
   const [weeklyClaims, setWeeklyClaims] = useState<any[]>([]);
+  const [taskCompletions, setTaskCompletions] = useState<any[]>([]);
+  const [gamePlays, setGamePlays] = useState<any[]>([]);
+  const [shortClaims, setShortClaims] = useState<any[]>([]);
   const [welcomeBonus, setWelcomeBonus] = useState<number>(0);
 
   // Fetch ALL records (paged) for a single user — to compute 100% accurate totals
@@ -242,20 +272,23 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   useEffect(() => {
     const uid = user.id;
     (async () => {
-      const [refs, wds, ads, cls, tsks, codes, weekly, bonusSetting] = await Promise.all([
+      const [refs, wds, ads, cls, tsks, completions, codes, weekly, games, shorts, bonusSetting] = await Promise.all([
         fetchAll("referrals", "referrer_id", uid),
         fetchAll("withdrawals", "user_id", uid),
         fetchAll("ad_watches", "user_id", uid),
         fetchAll("clicks", "user_id", uid),
         fetchAll("task_submissions", "user_id", uid),
+        fetchAll("task_completions", "user_id", uid),
         fetchAll("reward_claims", "user_id", uid),
         fetchAll("weekly_challenge_claims", "user_id", uid),
+        fetchAll("game_plays", "user_id", uid),
+        fetchAll("short_link_claims", "user_id", uid),
         supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single(),
       ]);
       setWelcomeBonus(user.welcome_bonus_claimed ? Number((bonusSetting as any)?.data?.value || 50) : 0);
 
       const refereeIds = refs.map((r: any) => r.referee_id).filter(Boolean);
-      const taskIds = tsks.map((t: any) => t.task_id).filter(Boolean);
+      const taskIds = [...tsks, ...completions].map((t: any) => t.task_id).filter(Boolean);
       const codeIds = codes.map((c: any) => c.code_id).filter(Boolean);
       const [refUsers, taskMeta, codeMeta] = await Promise.all([
         refereeIds.length ? supabase.from("users").select("id, username, first_name, telegram_id").in("id", refereeIds) : Promise.resolve({ data: [] as any[] }),
@@ -271,6 +304,9 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
       setAdWatches(ads);
       setClicks(cls);
       setTaskSubs(tsks.map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
+      setTaskCompletions(completions.map((t: any) => ({ ...t, task: taskMap[t.task_id] })));
+      setGamePlays(games);
+      setShortClaims(shorts);
       setRewardClaims(codes.map((c: any) => ({ ...c, reward_code: codeMap[c.code_id] })));
       setWeeklyClaims(weekly);
     })();
@@ -281,11 +317,14 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
   const clicksEarned = clicks.reduce((s, c) => s + Number(c.earned || 0), 0);
   const tasksApproved = taskSubs.filter(t => t.status === 'approved');
   const tasksEarned = tasksApproved.reduce((s, t) => s + Number(t.task?.value || 0), 0);
+  const taskCompletionsEarned = taskCompletions.reduce((s, t) => s + Number(t.task?.value || 0), 0);
   const refRewardEarned = referrals.filter(r => r.verified && r.reward_claimed).reduce((s, r) => s + Number(r.reward_amount || 0), 0);
   const refCommissionEarned = referrals.filter(r => r.verified).reduce((s, r) => s + Number(r.commission_earned || 0), 0);
   const codesEarned = rewardClaims.reduce((s, c) => s + Number(c.amount || 0), 0);
   const weeklyEarned = weeklyClaims.reduce((s, w) => s + Number(w.amount || 0), 0);
-  const totalEarned = welcomeBonus + adsEarned + clicksEarned + tasksEarned + refRewardEarned + refCommissionEarned + codesEarned + weeklyEarned;
+  const gamesEarned = gamePlays.reduce((sum, g) => sum + Number(g.payout || 0) - Number(g.bet || 0), 0);
+  const shortsEarned = shortClaims.filter(s => s.status === 'claimed').reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const totalEarned = welcomeBonus + adsEarned + clicksEarned + tasksEarned + taskCompletionsEarned + refRewardEarned + refCommissionEarned + codesEarned + weeklyEarned + gamesEarned + shortsEarned;
   const withdrawnApproved = withdrawals.filter(w => w.status === 'approved').reduce((s, w) => s + Number(w.amount || 0), 0);
   const withdrawnPending = withdrawals.filter(w => w.status === 'pending').reduce((s, w) => s + Number(w.amount || 0), 0);
   const expectedBalance = totalEarned - withdrawnApproved - withdrawnPending;
@@ -300,8 +339,8 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
         <p className="text-xs text-primary font-bold">{actualBalance.toFixed(2)} 🐰 | Country: {user.country || 'Unknown'}</p>
-        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
-        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
+        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (BEP20): {user.wallet_address}</p>}
+        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 GRAM (ex TON): {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
       </div>
 
@@ -311,11 +350,14 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p>🎁 Welcome Bonus: <b>+{welcomeBonus.toFixed(2)}</b></p>
           <p>📺 Ads ({adWatches.length}): <b>+{adsEarned.toFixed(2)}</b></p>
           <p>🖱️ Clicks ({clicks.length}): <b>+{clicksEarned.toFixed(2)}</b></p>
-          <p>📋 Tasks Approved ({tasksApproved.length}/{taskSubs.length}): <b>+{tasksEarned.toFixed(2)}</b></p>
+          <p>📋 Task Submissions Approved ({tasksApproved.length}/{taskSubs.length}): <b>+{tasksEarned.toFixed(2)}</b></p>
+          <p>✅ Task Completions ({taskCompletions.length}): <b>+{taskCompletionsEarned.toFixed(2)}</b></p>
           <p>👥 Referrals Reward ({referrals.filter(r=>r.verified && r.reward_claimed).length}): <b>+{refRewardEarned.toFixed(2)}</b></p>
           <p>💰 Referral Commissions: <b>+{refCommissionEarned.toFixed(2)}</b></p>
           <p>🎟️ Reward Codes ({rewardClaims.length}): <b>+{codesEarned.toFixed(2)}</b></p>
           <p>🏆 Weekly Challenges ({weeklyClaims.length}): <b>+{weeklyEarned.toFixed(2)}</b></p>
+          <p>🎮 Games ({gamePlays.length}): <b>{gamesEarned >= 0 ? '+' : ''}{gamesEarned.toFixed(2)}</b></p>
+          <p>🔗 Short Links ({shortClaims.filter(s => s.status === 'claimed').length}): <b>+{shortsEarned.toFixed(2)}</b></p>
           <hr className="border-border my-1" />
           <p className="font-bold">Total Earned: <b>{totalEarned.toFixed(2)} 🐰</b></p>
           <p>💸 Withdrawn (approved): <b>−{withdrawnApproved.toFixed(2)}</b></p>
@@ -412,6 +454,32 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           {weeklyClaims.map(w => (
             <p key={w.id} className="text-[10px] text-muted-foreground">
               {w.challenge_key} — +{w.amount} 🐰 | week {new Date(w.week_start).toLocaleDateString()} | claimed {new Date(w.created_at).toLocaleDateString()}
+            </p>
+          ))}
+          </div>
+        </div>
+      )}
+
+      {gamePlays.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🎮 Game History ({gamePlays.length})</p>
+          <div className="max-h-40 overflow-y-auto">
+          {gamePlays.slice(0, 50).map(g => (
+            <p key={g.id} className="text-[10px] text-muted-foreground">
+              {g.game} — bet {g.bet} / payout {g.payout} / net {(Number(g.payout || 0) - Number(g.bet || 0)).toFixed(0)} 🐰 | {new Date(g.created_at).toLocaleString()}
+            </p>
+          ))}
+          </div>
+        </div>
+      )}
+
+      {shortClaims.length > 0 && (
+        <div className="bg-card rounded-lg p-3 border border-border">
+          <p className="text-xs font-bold mb-1">🔗 Short Link Claims ({shortClaims.length})</p>
+          <div className="max-h-40 overflow-y-auto">
+          {shortClaims.slice(0, 50).map(c => (
+            <p key={c.id} className="text-[10px] text-muted-foreground">
+              {c.status} — +{c.amount || 0} 🐰 | {new Date(c.claimed_at || c.started_at || c.created_at).toLocaleString()}
             </p>
           ))}
           </div>
@@ -611,7 +679,7 @@ function SubmissionsTab() {
 
 function WithdrawalsTab() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'usdt_aptos' | 'ton'>('all');
+  const [filter, setFilter] = useState<'all' | 'usdt_bep20' | 'ton'>('all');
   const [loading, setLoading] = useState<string | null>(null);
   const [txInputs, setTxInputs] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<Record<string, any>>({});
@@ -665,12 +733,12 @@ function WithdrawalsTab() {
     setLoading(null);
   }
 
-  const filtered = withdrawals.filter(w => filter === 'all' ? true : w.method === filter);
+  const filtered = withdrawals.filter(w => filter === 'all' ? true : filter === 'usdt_bep20' ? w.method !== 'ton' : w.method === filter);
 
   return (
     <div className="space-y-2 mt-3">
       <div className="flex gap-1.5">
-        {([['all','All'],['usdt_aptos','🟢 USDT'],['ton','🔵 TON']] as const).map(([k, l]) => (
+        {([['all','All'],['usdt_bep20','🟢 USDT BEP20'],['ton','🔵 GRAM (ex TON)']] as const).map(([k, l]) => (
           <Button key={k} size="sm" variant={filter === k ? 'default' : 'outline'}
             className="h-7 text-[10px] flex-1" onClick={() => setFilter(k as any)}>{l}</Button>
         ))}
@@ -688,14 +756,14 @@ function WithdrawalsTab() {
             <div className="flex justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs font-semibold flex items-center gap-1">
-                  {isTon ? '🔵 TON' : '🟢 USDT (Aptos)'} • @{u?.username}
+                  {isTon ? '🔵 GRAM (ex TON)' : '🟢 USDT (BEP20)'} • @{u?.username}
                 </p>
                 <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🐰</p>
                 <p className="text-[10px] text-muted-foreground">
                   Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}
                 </p>
                 {isTon && w.ton_amount && (
-                  <p className="text-[10px] text-blue-400 font-bold">🪙 Pay: {Number(w.ton_amount).toFixed(6)} TON</p>
+                  <p className="text-[10px] text-blue-400 font-bold">🪙 Pay: {Number(w.ton_amount).toFixed(6)} GRAM</p>
                 )}
                 <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
                 <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
@@ -714,7 +782,7 @@ function WithdrawalsTab() {
                 <Input
                   value={txInputs[w.id] || ''}
                   onChange={(e) => setTxInputs(prev => ({ ...prev, [w.id]: e.target.value }))}
-                  placeholder={isTon ? 'TON tx hash (paste after sending)' : 'Aptos tx hash'}
+                  placeholder={isTon ? 'GRAM / TON tx hash (paste after sending)' : 'BEP20 / BSC tx hash'}
                   className="h-7 text-[10px] font-mono"
                 />
                 <div className="flex gap-2">
@@ -934,6 +1002,9 @@ function BroadcastTab() {
   const [buttonText, setButtonText] = useState("");
   const [buttonUrl, setButtonUrl] = useState("");
   const [sending, setSending] = useState(false);
+  const [userCount, setUserCount] = useState(0);
+
+  useEffect(() => { (async () => setUserCount((await fetchAllRows('users', 'id')).length))(); }, []);
 
   async function sendBroadcast() {
     if (!text.trim()) return;
@@ -944,7 +1015,7 @@ function BroadcastTab() {
         button_text: buttonText || undefined,
         button_url: buttonUrl || undefined,
       });
-      toast.success(`📢 Sent to ${result.sent} users!`);
+      toast.success(`📢 Sent to ${result.sent}/${result.total || userCount} users!`);
       setText(""); setImageUrl(""); setButtonText(""); setButtonUrl("");
     } catch { toast.error("Broadcast failed"); }
     setSending(false);
@@ -954,6 +1025,7 @@ function BroadcastTab() {
     <div className="space-y-3 mt-3">
       <div className="bg-card rounded-xl p-3 border border-border space-y-2">
         <p className="text-sm font-semibold">📢 Broadcast Message</p>
+        <p className="text-xs text-muted-foreground">All users count: <b>{userCount}</b></p>
         <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Message (HTML supported)" className="text-xs min-h-[80px]" />
         <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image URL (optional)" className="h-8 text-xs" />
         <div className="flex gap-2">
@@ -963,6 +1035,49 @@ function BroadcastTab() {
         <Button className="w-full h-8 text-xs bg-gradient-gold text-primary-foreground" onClick={sendBroadcast} disabled={sending}>
           {sending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Megaphone className="w-3 h-3 mr-1" />}
           Send Broadcast
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MaintenanceTab() {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    const { data } = await supabase.from("app_settings").select("value").eq("key", "maintenance_mode").maybeSingle();
+    setEnabled(data?.value === "true");
+  }
+
+  async function save(next: boolean) {
+    setLoading(true);
+    try {
+      await adminAction("update_settings", { key: "maintenance_mode", value: next ? "true" : "false" });
+      setEnabled(next);
+      toast.success(next ? "🛠️ Maintenance mode ON" : "✅ Maintenance mode OFF");
+    } catch {
+      toast.error("Failed to update maintenance mode");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      <div className={`rounded-xl p-4 border ${enabled ? "bg-amber-500/10 border-amber-500/50" : "bg-card border-border"}`}>
+        <p className="text-sm font-bold mb-1">🛠️ Maintenance Mode</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          When ON, all non-admin users only see the update screen inside the mini app. Admin can still open everything.
+        </p>
+        <Button
+          disabled={loading}
+          onClick={() => save(!enabled)}
+          className={`w-full h-9 text-xs font-bold ${enabled ? "bg-destructive text-destructive-foreground" : "bg-gradient-gold text-primary-foreground"}`}
+        >
+          {loading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Settings className="w-3 h-3 mr-1" />}
+          {enabled ? "Turn OFF Maintenance" : "Turn ON Maintenance"}
         </Button>
       </div>
     </div>

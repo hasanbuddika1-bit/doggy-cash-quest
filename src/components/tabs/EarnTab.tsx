@@ -1,26 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Copy, Loader2, MousePointerClick, Gift } from "lucide-react";
+import { Clock, Copy, Loader2, MousePointerClick } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { processClick, claimRewardCode } from "@/lib/api";
-import { showRandomAd } from "@/lib/ads";
+import { processClick } from "@/lib/api";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
 import { ChallengesSection } from "@/components/tabs/ChallengesSection";
-import { GamesSection } from "@/components/tabs/GamesSection";
 import { GuideButton } from "@/components/GuideButton";
 
 interface EarnTabProps { userId: string; telegramId: number; }
 
 const SUB_TABS = [
   { key: "Challenges",  icon: "🏆", color: "from-bunny-gold to-amber-500" },
-  { key: "Games",       icon: "🎮", color: "from-bunny-pink to-bunny-gold" },
   { key: "Clicks",      icon: "👆", color: "from-bunny-green to-emerald-600" },
   { key: "Refer",       icon: "👥", color: "from-bunny-pink to-bunny-lavender" },
-  { key: "Reward Code", icon: "🎁", color: "from-bunny-lavender to-bunny-pink" },
 ];
 
 const CLICK_LINKS = [
@@ -38,13 +34,13 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
           className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30 flex-1 mr-2"
         >
           <p className="font-display font-bold text-gradient-bunny text-sm">💰 Earn Bunny</p>
-          <p className="text-[11px] text-muted-foreground">Challenges • Clicks • Refer • Codes</p>
+          <p className="text-[11px] text-muted-foreground">Challenges • Clicks • Refer</p>
         </motion.div>
         <GuideButton title="Earn Guide" steps={[
           "🏆 Challenges: Reach weekly tiers (refers & ads) and claim — resets Sun 24:00 UTC.",
           "👆 Clicks: View a sponsor link 10s → earn 5 🐰. Max 2/hour.",
-          "👥 Refer: Share your link. Pending → Half-Active (50🐰) → Active (+100🐰 & 10% commission).",
-          "🎁 Reward Code: Codes are posted in our community channel — paste & claim.",
+          "👥 Refer: Join reward 30🐰, Day 1 ten ads +50🐰, Day 2 ten ads +70🐰 within 2 days.",
+          "🎁 Reward Codes are now on the Home tab.",
         ]} />
       </div>
 
@@ -65,10 +61,8 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
           {subTab === "Challenges" && <ChallengesSection userId={userId} />}
-          {subTab === "Games"      && <GamesSection userId={userId} />}
           {subTab === "Clicks"     && <ClicksSection userId={userId} />}
           {subTab === "Refer"      && <ReferSection userId={userId} telegramId={telegramId} />}
-          {subTab === "Reward Code"&& <RewardCodeSection userId={userId} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -179,8 +173,8 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
   useEffect(() => { load(); }, [load]);
 
   const referLink = `https://t.me/Bunnyearnbot?startapp=ref_${telegramId}`;
-  const half = referrals.filter(r => r.status === 'half_active' || r.status === 'active').length;
-  const active = referrals.filter(r => r.status === 'active').length;
+  const day1 = referrals.filter(r => r.main_reward_paid || r.status === 'day1_complete' || r.status === 'active').length;
+  const day2 = referrals.filter(r => r.partner_reward_paid || r.status === 'active').length;
 
   return (
     <div className="space-y-4">
@@ -188,9 +182,10 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
         className="bg-gradient-to-br from-bunny-pink/25 via-card to-bunny-lavender/15 rounded-2xl p-5 border border-bunny-pink/30 text-center"
       >
         <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-4xl inline-block">👥</motion.span>
-        <p className="text-xs text-muted-foreground mb-1 mt-2">Total: {referrals.length} • Counted: {half} • Active: {active}</p>
-        <p className="text-2xl font-display font-bold text-gradient-bunny">50 🐰 + 100 🐰 + 10%</p>
-        <p className="text-[11px] text-muted-foreground mt-1">Main done → 50 🐰 • Partner done → +100 🐰 & commission</p>
+        <p className="text-xs text-muted-foreground mb-1 mt-2">Total: {referrals.length} • Day 1: {day1} • Day 2: {day2}</p>
+        <p className="text-2xl font-display font-bold text-gradient-bunny">30 + 50 + 70 = 150 🐰</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Join +30 🐰 • Day 1 ten ads +50 🐰 • Day 2 ten ads +70 🐰</p>
+        <p className="text-[10px] text-destructive mt-1 font-semibold">Must complete within 2 days, otherwise fake referral reward is rejected.</p>
       </motion.div>
 
       <div className="bg-card rounded-xl p-3 border border-bunny-pink/20">
@@ -220,9 +215,10 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
         )}
         {referrals.map((r) => {
           const statusBadge =
-            r.status === 'active'      ? { label: '✅ Active',      cls: 'bg-bunny-green/20 text-bunny-green' } :
-            r.status === 'half_active' ? { label: '⚡ Half-Active', cls: 'bg-bunny-gold/20 text-bunny-gold-soft' } :
-                                         { label: '⏳ Pending',     cls: 'bg-bunny-pink/20 text-bunny-pink-light' };
+            r.status === 'active'      ? { label: '✅ Completed 150', cls: 'bg-bunny-green/20 text-bunny-green' } :
+            r.status === 'day1_complete' ? { label: '⚡ Day 1 Done',    cls: 'bg-bunny-gold/20 text-bunny-gold-soft' } :
+            r.status === 'expired'     ? { label: '❌ Expired',       cls: 'bg-destructive/20 text-destructive' } :
+                                         { label: '⏳ Joined +30',    cls: 'bg-bunny-pink/20 text-bunny-pink-light' };
           return (
             <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
               className="flex items-center justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2"
@@ -234,76 +230,12 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-muted-foreground">Earned</p>
-                <p className="text-xs font-bold text-gradient-bunny">{Number(r.commission_earned || 0).toFixed(0)} 🐰</p>
+                <p className="text-xs font-bold text-gradient-bunny">{(Number(r.reward_amount || 0) + Number(r.commission_earned || 0)).toFixed(0)} 🐰</p>
               </div>
             </motion.div>
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function RewardCodeSection({ userId }: { userId: string }) {
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [claims, setClaims] = useState<any[]>([]);
-  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
-
-  const load = useCallback(async () => {
-    const { data } = await supabase.from("reward_claims").select("*, reward_codes(code, value)").eq("user_id", userId);
-    setClaims(data || []);
-  }, [userId]);
-  useEffect(() => { load(); }, [load]);
-
-  async function handleClaim() {
-    if (!code.trim()) return;
-    setLoading(true);
-    try {
-      toast.info("📺 Watch a quick ad to claim...");
-      await showRandomAd();
-      const r = await claimRewardCode(userId, code.trim());
-      if (r.success) { setReward({ show: true, amount: r.amount }); setCode(""); load(); }
-      else toast.error(r.message || "Invalid code");
-    } catch { toast.error("Failed to claim code"); }
-    setLoading(false);
-  }
-
-  return (
-    <div className="space-y-4">
-      <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="bg-gradient-to-br from-bunny-lavender/25 via-card to-bunny-pink/15 rounded-xl p-4 border border-bunny-lavender/30"
-      >
-        <p className="text-sm font-display font-bold text-gradient-bunny mb-3">🎁 Enter Reward Code</p>
-        <div className="flex gap-2">
-          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code..." className="h-10 bg-background" />
-          <Button onClick={handleClaim} disabled={loading} className="h-10 bg-gradient-bunny text-primary-foreground border-0 px-5">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4 mr-1" />}
-            Claim
-          </Button>
-        </div>
-      </motion.div>
-
-      <Button variant="outline" className="w-full border-bunny-pink/30" onClick={() => {
-        const wa = getTelegramWebApp();
-        const url = "https://t.me/bunnyearnhub";
-        if (wa) wa.openTelegramLink(url); else window.open(url, "_blank");
-      }}>
-        📢 Get Codes from Community
-      </Button>
-
-      {claims.length > 0 && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Claim History</p>
-          {claims.map((c) => (
-            <div key={c.id} className="flex justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2">
-              <span className="text-xs font-mono font-bold">{(c.reward_codes as any)?.code}</span>
-              <span className="text-xs text-bunny-green font-bold">+{c.amount} 🐰</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

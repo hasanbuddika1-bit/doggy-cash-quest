@@ -45,9 +45,9 @@ export function ChallengesSection({ userId }: Props) {
   const load = useCallback(async () => {
     const wsISO = weekStart.toISOString();
     const [refRes, adsRes, claimsRes] = await Promise.all([
-      // Count half-active + active referrals created this week
+      // Count only fully active referrals created this week
       supabase.from("referrals").select("id", { count: "exact", head: true })
-        .eq("referrer_id", userId).in("status", ["half_active", "active"]).gte("created_at", wsISO),
+        .eq("referrer_id", userId).eq("status", "active").gte("created_at", wsISO),
       supabase.from("ad_watches").select("id", { count: "exact", head: true })
         .eq("user_id", userId).gte("created_at", wsISO),
       supabase.from("weekly_challenge_claims").select("challenge_key").eq("user_id", userId).eq("week_start", wsISO),

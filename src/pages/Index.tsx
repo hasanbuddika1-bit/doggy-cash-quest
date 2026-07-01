@@ -7,16 +7,15 @@ import { BottomNav } from "@/components/BottomNav";
 import { HomeTab } from "@/components/tabs/HomeTab";
 import { TasksTab } from "@/components/tabs/TasksTab";
 import { EarnTab } from "@/components/tabs/EarnTab";
-import { ShortLinksTab } from "@/components/tabs/ShortLinksTab";
 import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
-import { playAutoAd } from "@/lib/ads";
 
-type AppState = "loading" | "main" | "banned";
+type AppState = "loading" | "main" | "banned" | "maintenance";
+const ADMIN_TELEGRAM_ID = 5419054691;
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("loading");
@@ -55,12 +54,22 @@ const Index = () => {
       setProgress(75);
       setUserId(result.user.id);
       setUser(result.user);
-      if (startParam?.startsWith("sl_")) setActiveTab("shortlinks");
 
       if (result.user.banned) { setProgress(100); setTimeout(() => setAppState("banned"), 500); return; }
 
+      const { data: maintenance } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "maintenance_mode")
+        .maybeSingle();
+      if (maintenance?.value === "true" && telegramUser.id !== ADMIN_TELEGRAM_ID) {
+        setProgress(100);
+        setTimeout(() => setAppState("maintenance"), 500);
+        return;
+      }
+
       setProgress(100);
-      setTimeout(() => { setAppState("main"); playAutoAd(); }, 700);
+      setTimeout(() => setAppState("main"), 700);
     } catch (err) {
       console.error("Init error:", err);
       setProgress(100);
@@ -91,6 +100,19 @@ const Index = () => {
     );
   }
 
+  if (appState === "maintenance") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="bg-card rounded-3xl p-8 border border-bunny-pink/30 text-center max-w-sm glow-pink">
+          <span className="text-6xl block mb-4 animate-hop">🛠️</span>
+          <h2 className="text-xl font-display font-bold text-gradient-bunny mb-2">Update in Progress</h2>
+          <p className="text-sm text-muted-foreground mb-2">Bunny Earn Hub is under maintenance.</p>
+          <p className="text-xs text-muted-foreground">Please come back soon for the new update. 🐰✨</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background relative">
       <AnimatedBackground />
@@ -100,7 +122,6 @@ const Index = () => {
           {activeTab === "tasks"    && <TasksTab key="tasks" userId={userId} telegramId={user?.telegram_id} />}
           {activeTab === "watchads" && <WatchAdsTab key="watchads" userId={userId} />}
           {activeTab === "earn"     && <EarnTab key="earn" userId={userId} telegramId={user?.telegram_id} />}
-          {activeTab === "shortlinks" && <ShortLinksTab key="shortlinks" userId={userId} />}
           {activeTab === "history"  && <HistoryTab key="history" userId={userId} />}
           {activeTab === "withdraw" && <WithdrawTab key="withdraw" userId={userId} user={user} />}
           {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} />}

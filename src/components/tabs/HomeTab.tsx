@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Tv, ExternalLink } from "lucide-react";
+import { Tv, ExternalLink, Gift, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { claimRewardCode } from "@/lib/api";
+import { showRandomAd } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import bunnyLogo from "@/assets/bunny-logo.png";
 import { GuideButton } from "@/components/GuideButton";
+import { RewardPopup } from "@/components/RewardPopup";
+import { toast } from "sonner";
 
 interface HomeTabProps {
   user: any;
@@ -18,6 +23,9 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
   const userId = user?.id;
 
   const [stats, setStats] = useState({ totalAds: 0, totalClicks: 0, totalRefs: 0, totalWithdrawn: 0 });
+  const [rewardCode, setRewardCode] = useState("");
+  const [claimingCode, setClaimingCode] = useState(false);
+  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
 
   const loadStats = useCallback(async () => {
     if (!userId) return;
@@ -37,6 +45,24 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
+  async function handleClaimCode() {
+    if (!userId || !rewardCode.trim()) return;
+    setClaimingCode(true);
+    try {
+      toast.info("📺 Watch Adsgram/GigaPub ad to claim...");
+      await showRandomAd();
+      const r = await claimRewardCode(userId, rewardCode.trim());
+      if (r.success) {
+        setReward({ show: true, amount: Number(r.amount || 0) });
+        setRewardCode("");
+        loadStats();
+      } else toast.error(r.message || "Invalid code");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to claim code");
+    }
+    setClaimingCode(false);
+  }
+
   const userStats = [
     { icon: "💰", label: "Balance",   value: balance.toFixed(0),                color: "from-bunny-pink/25 to-bunny-lavender/10", borderColor: "border-bunny-pink/30" },
     { icon: "💸", label: "Withdrawn", value: `$${stats.totalWithdrawn.toFixed(2)}`, color: "from-rose-500/25 to-pink-500/10", borderColor: "border-rose-400/30" },
@@ -46,6 +72,7 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-5">
+      <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
       <div className="flex items-center justify-between">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl p-4 border border-bunny-pink/30 flex-1 mr-2"
@@ -70,8 +97,8 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
           "Watch your balance and stats here.",
           "Tap 📺 Watch Ads → earn Bunny from 3 ad networks.",
           "Visit Tasks tab → complete Main/Partner missions.",
-          "Earn tab → daily challenges, clicks, referrals & reward codes.",
-          "Withdraw tab → cash out as USDT or TON.",
+          "Reward code can be claimed directly on this Home tab.",
+          "Withdraw tab → cash out as USDT (BEP20) or GRAM (ex TON).",
         ]} />
       </div>
 
@@ -89,6 +116,21 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
           {balance.toFixed(0)} 🐰
         </motion.p>
         <p className="text-sm text-muted-foreground mt-1">≈ ${usdtValue} USDT</p>
+      </motion.div>
+
+      {/* Reward Code */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+        className="bg-gradient-to-br from-bunny-lavender/25 via-card to-bunny-pink/15 rounded-2xl p-4 border border-bunny-lavender/30"
+      >
+        <p className="text-sm font-display font-bold text-gradient-bunny mb-2">🎁 Reward Code</p>
+        <p className="text-[11px] text-muted-foreground mb-3">Paste code here. Claim ad uses only Adsgram or GigaPub.</p>
+        <div className="flex gap-2">
+          <Input value={rewardCode} onChange={(e) => setRewardCode(e.target.value)} placeholder="Enter code..." className="h-10 bg-background" />
+          <Button onClick={handleClaimCode} disabled={claimingCode || !rewardCode.trim()} className="h-10 bg-gradient-bunny text-primary-foreground border-0 px-5">
+            {claimingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4 mr-1" />}
+            Claim
+          </Button>
+        </div>
       </motion.div>
 
       {/* CTA */}

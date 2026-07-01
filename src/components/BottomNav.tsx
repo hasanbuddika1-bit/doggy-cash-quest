@@ -10,7 +10,6 @@ const tabs = [
   { id: "tasks",    label: "Tasks",    emoji: "📋" },
   { id: "watchads", label: "Ads",      emoji: "📺" },
   { id: "earn",     label: "Earn",     emoji: "💰" },
-  { id: "shortlinks", label: "Links",  emoji: "🔗" },
   { id: "history",  label: "History",  emoji: "📜" },
   { id: "withdraw", label: "Withdraw", emoji: "💸" },
   { id: "profile",  label: "Profile",  emoji: "👤" },

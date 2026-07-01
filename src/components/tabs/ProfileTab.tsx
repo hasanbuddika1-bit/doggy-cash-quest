@@ -10,22 +10,22 @@ import { GuideButton } from "@/components/GuideButton";
 interface ProfileTabProps { user: any; userId: string; }
 
 export function ProfileTab({ user, userId }: ProfileTabProps) {
-  const [aptosWallet, setAptosWallet] = useState(user?.aptos_address || user?.wallet_address || "");
+  const [bep20Wallet, setBep20Wallet] = useState(user?.wallet_address || "");
   const [tonWallet, setTonWallet] = useState(user?.ton_address || "");
-  const [editingAptos, setEditingAptos] = useState(false);
+  const [editingBep20, setEditingBep20] = useState(false);
   const [editingTon, setEditingTon] = useState(false);
   const balance = Number(user?.balance || 0);
 
-  async function saveAptos() {
-    if (!aptosWallet.trim()) { toast.error("Enter address"); return; }
-    await updateWallet(userId, aptosWallet, 'usdt_aptos');
-    toast.success("✅ USDT (Aptos) wallet saved!");
-    setEditingAptos(false);
+  async function saveBep20() {
+    if (!bep20Wallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, bep20Wallet, 'usdt_bep20');
+    toast.success("✅ USDT (BEP20) wallet saved!");
+    setEditingBep20(false);
   }
   async function saveTon() {
     if (!tonWallet.trim()) { toast.error("Enter address"); return; }
     await updateWallet(userId, tonWallet, 'ton');
-    toast.success("✅ TON wallet saved!");
+    toast.success("✅ GRAM (ex TON) wallet saved!");
     setEditingTon(false);
   }
 
@@ -37,7 +37,7 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
       <div className="flex items-center justify-between">
         <p className="font-display font-bold text-gradient-bunny text-lg">👤 Profile</p>
         <GuideButton title="Profile Guide" steps={[
-          "Save your USDT (Aptos) and TON wallet addresses here.",
+          "Save your USDT (BEP20) and GRAM (ex TON) wallet addresses here.",
           "These are used when you withdraw — make sure they are correct!",
           "Tap the pencil to edit, then Save.",
           "Your Telegram ID is shown for support requests.",
@@ -93,18 +93,18 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
         className="bg-gradient-to-br from-emerald-500/10 to-card rounded-xl p-4 border border-bunny-green/30"
       >
         <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-bunny-green" /> 🟢 USDT (Aptos) Address</p>
-          <button onClick={() => setEditingAptos(!editingAptos)} className="p-1 hover:bg-muted rounded">
+          <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-bunny-green" /> 🟢 USDT (BEP20) Address</p>
+          <button onClick={() => setEditingBep20(!editingBep20)} className="p-1 hover:bg-muted rounded">
             <Edit className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
-        {editingAptos ? (
+        {editingBep20 ? (
           <div className="flex gap-2">
-            <Input value={aptosWallet} onChange={(e) => setAptosWallet(e.target.value)} className="h-9 text-xs" placeholder="Aptos address (0x...)" />
-            <Button size="sm" className="h-9 bg-gradient-green text-white" onClick={saveAptos}><Save className="w-3 h-3" /></Button>
+            <Input value={bep20Wallet} onChange={(e) => setBep20Wallet(e.target.value)} className="h-9 text-xs" placeholder="BEP20/BSC address (0x...)" />
+            <Button size="sm" className="h-9 bg-gradient-green text-white" onClick={saveBep20}><Save className="w-3 h-3" /></Button>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground font-mono break-all">{aptosWallet || 'Not set'}</p>
+          <p className="text-xs text-muted-foreground font-mono break-all">{bep20Wallet || 'Not set'}</p>
         )}
       </motion.div>
 
@@ -112,14 +112,14 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
         className="bg-gradient-to-br from-blue-500/10 to-card rounded-xl p-4 border border-blue-400/30"
       >
         <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-blue-400" /> 🔵 TON Address</p>
+          <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-blue-400" /> 🔵 GRAM (ex TON) Address</p>
           <button onClick={() => setEditingTon(!editingTon)} className="p-1 hover:bg-muted rounded">
             <Edit className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
         {editingTon ? (
           <div className="flex gap-2">
-            <Input value={tonWallet} onChange={(e) => setTonWallet(e.target.value)} className="h-9 text-xs" placeholder="TON address (EQ.../UQ...)" />
+            <Input value={tonWallet} onChange={(e) => setTonWallet(e.target.value)} className="h-9 text-xs" placeholder="GRAM address (EQ.../UQ...)" />
             <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-cyan-600 text-white" onClick={saveTon}><Save className="w-3 h-3" /></Button>
           </div>
         ) : (

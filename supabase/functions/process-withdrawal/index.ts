@@ -37,7 +37,7 @@ async function estimateEarned(supabase: any, userId: string) {
     supabase.from('weekly_challenge_claims').select('amount').eq('user_id', userId),
     supabase.from('game_plays').select('bet, payout').eq('user_id', userId),
     supabase.from('short_link_claims').select('amount').eq('user_id', userId).eq('status', 'claimed'),
-    supabase.from('referrals').select('commission_earned, main_reward_paid, partner_reward_paid').eq('referrer_id', userId),
+    supabase.from('referrals').select('reward_amount, commission_earned').eq('referrer_id', userId).eq('verified', true).eq('reward_claimed', true),
   ]);
   let earned = 0;
   (ads.data || []).forEach((r: any) => earned += Number(r.earned || 0));
@@ -46,7 +46,7 @@ async function estimateEarned(supabase: any, userId: string) {
   (weekly.data || []).forEach((r: any) => earned += Number(r.amount || 0));
   (shorts.data || []).forEach((r: any) => earned += Number(r.amount || 0));
   (games.data || []).forEach((r: any) => earned += Number(r.payout || 0) - Number(r.bet || 0));
-  (refs.data || []).forEach((r: any) => earned += Number(r.commission_earned || 0) + (r.main_reward_paid ? 50 : 0) + (r.partner_reward_paid ? 100 : 0));
+  (refs.data || []).forEach((r: any) => earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0));
   return earned;
 }
 
@@ -60,7 +60,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { user_id, amount, wallet_address, method = 'usdt_aptos' } = await req.json();
+    const { user_id, amount, wallet_address, method = 'usdt_bep20' } = await req.json();
+    const normalizedMethod = method === 'ton' ? 'ton' : 'usdt_bep20';
 
     const { data: user } = await supabase.from('users').select('*').eq('id', user_id).single();
     if (!user) throw new Error('User not found');
@@ -75,9 +76,9 @@ Deno.serve(async (req) => {
     const totalRefReq = Number(s.total_referrals_required || 2);
     const rate = Number(s.doggy_to_usdt_rate || 0.0001);
 
-    const isTon = method === 'ton';
-    if (isTon && s.ton_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'TON withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    if (!isTon && s.aptos_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'USDT (Aptos) withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const isTon = normalizedMethod === 'ton';
+    if (isTon && s.ton_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'GRAM withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!isTon && s.bep20_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'USDT (BEP20) withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const feeFixed = isTon ? Number(s.ton_fee_fixed || 0.005) : Number(s.withdraw_fee_fixed || 0.01);
     const feePercent = isTon ? Number(s.ton_fee_percent || 2) : Number(s.withdraw_fee_percent || 2);
@@ -108,8 +109,8 @@ Deno.serve(async (req) => {
       const { count: dailyAds } = await supabase.from('ad_watches').select('*', { count: 'exact', head: true }).eq('user_id', user_id).gte('created_at', todayISO);
       if ((dailyAds || 0) < dailyAdsReq) return new Response(JSON.stringify({ success: false, message: `Need ${dailyAdsReq} daily ads watched` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).in('status', ['half_active', 'active']);
-      if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} half-active/active referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { count: refCount } = await supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user_id).eq('status', 'active');
+      if ((refCount || 0) < totalRefReq) return new Response(JSON.stringify({ success: false, message: `Need ${totalRefReq} active referrals` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
       const [mainRes, partnerRes, completionsRes] = await Promise.all([
         supabase.from('tasks').select('id').eq('active', true).eq('category', 'main').eq('gives_reward', true),
@@ -136,18 +137,18 @@ Deno.serve(async (req) => {
       } catch {}
     }
 
-    const methodLabel = isTon ? '🔵 TON' : '🟢 USDT (Aptos)';
+    const methodLabel = isTon ? '🔵 GRAM (ex TON)' : '🟢 USDT (BEP20)';
 
     await supabase.from('withdrawals').insert({
       user_id, amount, usdt_amount: grossUsdt, fee_usdt: fee, net_usdt: netUsdt,
-      wallet_address, method, ton_amount: tonAmount, status: 'pending',
+      wallet_address, method: normalizedMethod, ton_amount: tonAmount, status: 'pending',
     });
     await addHistory(supabase, user_id, 'withdrawal_pending', -Number(amount), '💸 Withdrawal Requested', `${methodLabel} pending approval`);
 
-    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: wallet_address };
+    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: null };
     await supabase.from('users').update(update).eq('id', user_id);
 
-    const amountLine = isTon && tonAmount ? `🪙 TON: <b>${tonAmount} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
+    const amountLine = isTon && tonAmount ? `🪙 GRAM: <b>${tonAmount} GRAM</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
     await sendTelegram('sendMessage', {
       chat_id: ADMIN_CHAT_ID,
