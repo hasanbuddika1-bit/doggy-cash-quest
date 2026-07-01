@@ -133,12 +133,16 @@ export async function showGigapubAd(): Promise<number> {
     const showGiga = (window as any).showGiga;
     if (typeof showGiga !== "function") throw new AdNotShownError("gigapub", "SDK not loaded");
     const start = Date.now();
+    const oldAdsgram = (window as any).Adsgram;
     await new Promise<void>((resolve) => {
       try {
+        // Prevent accidental Adsgram SDK popup while GigaPub is the selected network.
+        try { (window as any).Adsgram = undefined; } catch { /* ignore */ }
         showGiga().then(() => resolve()).catch(() => resolve());
         setTimeout(() => resolve(), 60000);
       } catch { resolve(); }
     });
+    try { (window as any).Adsgram = oldAdsgram; } catch { /* ignore */ }
     const secs = Math.round((Date.now() - start) / 1000);
     if (secs < MIN_SECONDS.gigapub) throw new AdClosedEarlyError(secs, MIN_SECONDS.gigapub);
     return secs;
@@ -152,7 +156,10 @@ export async function showRandomAd(): Promise<void> {
   const next = last === "adsgram" ? "gigapub" : "adsgram";
   localStorage.setItem("bunny_last_claim_ad_network", next);
   if (next === "gigapub") await showGigapubAd();
-  else await showAdsgramBlock1();
+  else {
+    try { await showAdsgramBlock1(); }
+    catch (e) { await showGigapubAd(); }
+  }
 }
 
 export async function playAutoAd(): Promise<void> {
