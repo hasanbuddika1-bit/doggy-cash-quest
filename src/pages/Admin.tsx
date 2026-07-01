@@ -94,16 +94,19 @@ function UsersTab() {
     if (ids.length) {
       const { data: bonusSetting } = await supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single();
       const welcomeBonus = Number(bonusSetting?.value || 50);
-      const [ads, clicks, tasks, refs, codes, withdrawals, weekly] = await Promise.all([
-        supabase.from("ad_watches").select("user_id, earned").in("user_id", ids),
-        supabase.from("clicks").select("user_id, earned").in("user_id", ids),
-        supabase.from("task_submissions").select("user_id, status, task_id").in("user_id", ids),
-        supabase.from("referrals").select("referrer_id, reward_amount, commission_earned, verified, reward_claimed").in("referrer_id", ids),
-        supabase.from("reward_claims").select("user_id, amount").in("user_id", ids),
-        supabase.from("withdrawals").select("user_id, amount, status").in("user_id", ids),
-        supabase.from("weekly_challenge_claims").select("user_id, amount").in("user_id", ids),
+      const idSet = new Set(ids);
+      const [ads, clicks, tasks, refs, codes, withdrawals, weekly, games, shorts] = await Promise.all([
+        fetchAllRows("ad_watches", "user_id, earned"),
+        fetchAllRows("clicks", "user_id, earned"),
+        fetchAllRows("task_submissions", "user_id, status, task_id"),
+        fetchAllRows("referrals", "referrer_id, reward_amount, commission_earned, verified, reward_claimed"),
+        fetchAllRows("reward_claims", "user_id, amount"),
+        fetchAllRows("withdrawals", "user_id, amount, status"),
+        fetchAllRows("weekly_challenge_claims", "user_id, amount"),
+        fetchAllRows("game_plays", "user_id, bet, payout"),
+        fetchAllRows("short_link_claims", "user_id, amount, status"),
       ]);
-      const taskIds = [...new Set((tasks.data || []).map((r: any) => r.task_id).filter(Boolean))];
+      const taskIds = [...new Set((tasks || []).filter((r: any) => idSet.has(r.user_id)).map((r: any) => r.task_id).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
       const taskValues: Record<string, number> = {};
       if (taskIds.length) {
@@ -116,23 +119,25 @@ function UsersTab() {
         const wb = u?.welcome_bonus_claimed ? welcomeBonus : 0;
         counts[id] = { ads: 0, clicks: 0, adminTasks: 0, telegramTasks: 0, refs: 0, codes: 0, weekly: 0, withdrawals: 0, withdrawnDoggy: 0, pendingDoggy: 0, welcomeBonus: wb, earned: wb };
       });
-      (ads.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
-      (clicks.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
-      (tasks.data || []).forEach((r: any) => {
+      (ads || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
+      (clicks || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
+      (tasks || []).forEach((r: any) => {
         if (!counts[r.user_id] || r.status !== "approved") return;
         const tv = taskValues[r.task_id] || 0;
         counts[r.user_id].earned += tv;
         taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
       });
-      (refs.data || []).forEach((r: any) => {
+      (refs || []).forEach((r: any) => {
         if (!counts[r.referrer_id]) return;
         counts[r.referrer_id].refs++;
         if (r.verified && r.reward_claimed) counts[r.referrer_id].earned += Number(r.reward_amount || 0);
         if (r.verified) counts[r.referrer_id].earned += Number(r.commission_earned || 0);
       });
-      (codes.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (weekly.data || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
-      (withdrawals.data || []).forEach((r: any) => {
+      (codes || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].codes++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (weekly || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].weekly++; counts[r.user_id].earned += Number(r.amount || 0); } });
+      (games || []).forEach((r: any) => { if (counts[r.user_id]) counts[r.user_id].earned += Number(r.payout || 0) - Number(r.bet || 0); });
+      (shorts || []).forEach((r: any) => { if (counts[r.user_id] && r.status === 'claimed') counts[r.user_id].earned += Number(r.amount || 0); });
+      (withdrawals || []).forEach((r: any) => {
         if (!counts[r.user_id]) return;
         counts[r.user_id].withdrawals++;
         if (r.status === 'approved') counts[r.user_id].withdrawnDoggy += Number(r.amount || 0);
