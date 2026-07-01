@@ -327,8 +327,8 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
         <p className="text-sm font-bold">{user.first_name || user.username || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground">@{user.username} | TG: {user.telegram_id} | IP: {user.ip_address || 'N/A'}</p>
         <p className="text-xs text-primary font-bold">{actualBalance.toFixed(2)} 🐰 | Country: {user.country || 'Unknown'}</p>
-        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (Aptos): {user.wallet_address}</p>}
-        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 TON: {user.ton_address}</p>}
+        {user.wallet_address && <p className="text-[10px] text-muted-foreground break-all">🟢 USDT (BEP20): {user.wallet_address}</p>}
+        {user.ton_address && <p className="text-[10px] text-muted-foreground break-all">🔵 GRAM (ex TON): {user.ton_address}</p>}
         <p className="text-[10px] text-muted-foreground">Joined: {new Date(user.created_at).toLocaleString()}</p>
       </div>
 
@@ -638,7 +638,7 @@ function SubmissionsTab() {
 
 function WithdrawalsTab() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'all' | 'usdt_aptos' | 'ton'>('all');
+  const [filter, setFilter] = useState<'all' | 'usdt_bep20' | 'ton'>('all');
   const [loading, setLoading] = useState<string | null>(null);
   const [txInputs, setTxInputs] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<Record<string, any>>({});
@@ -697,7 +697,7 @@ function WithdrawalsTab() {
   return (
     <div className="space-y-2 mt-3">
       <div className="flex gap-1.5">
-        {([['all','All'],['usdt_aptos','🟢 USDT'],['ton','🔵 TON']] as const).map(([k, l]) => (
+        {([['all','All'],['usdt_bep20','🟢 USDT BEP20'],['ton','🔵 GRAM (ex TON)']] as const).map(([k, l]) => (
           <Button key={k} size="sm" variant={filter === k ? 'default' : 'outline'}
             className="h-7 text-[10px] flex-1" onClick={() => setFilter(k as any)}>{l}</Button>
         ))}
@@ -715,14 +715,14 @@ function WithdrawalsTab() {
             <div className="flex justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs font-semibold flex items-center gap-1">
-                  {isTon ? '🔵 TON' : '🟢 USDT (Aptos)'} • @{u?.username}
+                  {isTon ? '🔵 GRAM (ex TON)' : '🟢 USDT (BEP20)'} • @{u?.username}
                 </p>
                 <p className="text-sm font-bold text-primary">{Number(w.amount).toFixed(0)} 🐰</p>
                 <p className="text-[10px] text-muted-foreground">
                   Gross: ${Number(w.usdt_amount).toFixed(4)} | Fee: ${Number(w.fee_usdt || 0).toFixed(4)} | Net: ${Number(w.net_usdt || w.usdt_amount).toFixed(4)}
                 </p>
                 {isTon && w.ton_amount && (
-                  <p className="text-[10px] text-blue-400 font-bold">🪙 Pay: {Number(w.ton_amount).toFixed(6)} TON</p>
+                  <p className="text-[10px] text-blue-400 font-bold">🪙 Pay: {Number(w.ton_amount).toFixed(6)} GRAM</p>
                 )}
                 <p className="text-[10px] text-muted-foreground font-mono break-all">{w.wallet_address}</p>
                 <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString()}</p>
@@ -741,7 +741,7 @@ function WithdrawalsTab() {
                 <Input
                   value={txInputs[w.id] || ''}
                   onChange={(e) => setTxInputs(prev => ({ ...prev, [w.id]: e.target.value }))}
-                  placeholder={isTon ? 'TON tx hash (paste after sending)' : 'Aptos tx hash'}
+                  placeholder={isTon ? 'GRAM / TON tx hash (paste after sending)' : 'BEP20 / BSC tx hash'}
                   className="h-7 text-[10px] font-mono"
                 />
                 <div className="flex gap-2">

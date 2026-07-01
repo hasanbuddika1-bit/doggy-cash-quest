@@ -375,9 +375,9 @@ Deno.serve(async (req) => {
       const txClean = String(tx_hash).trim();
       const txExplorer = isTon
         ? `https://tonviewer.com/transaction/${encodeURIComponent(txClean)}`
-        : `https://explorer.aptoslabs.com/txn/${encodeURIComponent(txClean)}?network=mainnet`;
-      const methodLabel = isTon ? '🔵 TON (GRAM)' : '🟢 USDT (Aptos)';
-      const paidLine = isTon ? `🪙 Paid: <b>${tonAmt} TON</b> (~$${netUsdt.toFixed(4)})` : `💵 Paid: <b>$${netUsdt.toFixed(4)} USDT</b>`;
+        : `https://bscscan.com/tx/${encodeURIComponent(txClean)}`;
+      const methodLabel = isTon ? '🔵 GRAM (ex TON)' : '🟢 USDT (BEP20)';
+      const paidLine = isTon ? `🪙 Paid: <b>${tonAmt} GRAM</b> (~$${netUsdt.toFixed(4)})` : `💵 Paid: <b>$${netUsdt.toFixed(4)} USDT</b>`;
       const safeWallet = escHtml(w.wallet_address);
       const safeTx = escHtml(txClean);
       const safeUname = escHtml((w.users as any)?.username || 'unknown');
@@ -409,7 +409,7 @@ Deno.serve(async (req) => {
         });
         let chResp = await sendTelegram('sendMessage', { chat_id: PAYMENT_CHANNEL, text: channelText, parse_mode: 'HTML', reply_markup: replyMarkup }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         if (!chResp?.ok) {
-          const plain = `✅ New Payment Sent!\n\nUser: ${(w.users as any)?.username ? '@' + (w.users as any).username : 'a user'}\nMethod: ${isTon ? 'TON' : 'USDT (Aptos)'}\nAmount: ${w.amount} Bunny\n${isTon ? `Paid: ${tonAmt} TON (~$${netUsdt.toFixed(4)})` : `Paid: $${netUsdt.toFixed(4)} USDT`}\nTX: ${txClean}\n\nEarn yours on Bunny Earn Hub! 🐰`;
+          const plain = `✅ New Payment Sent!\n\nUser: ${(w.users as any)?.username ? '@' + (w.users as any).username : 'a user'}\nMethod: ${isTon ? 'GRAM (ex TON)' : 'USDT (BEP20)'}\nAmount: ${w.amount} Bunny\n${isTon ? `Paid: ${tonAmt} GRAM (~$${netUsdt.toFixed(4)})` : `Paid: $${netUsdt.toFixed(4)} USDT`}\nTX: ${txClean}\n\nEarn yours on Bunny Earn Hub! 🐰`;
           chResp = await sendTelegram('sendMessage', { chat_id: PAYMENT_CHANNEL, text: plain, reply_markup: replyMarkup, disable_web_page_preview: true }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
         }
         if (!chResp?.ok) {
@@ -542,7 +542,7 @@ Deno.serve(async (req) => {
       let progress = 0;
       if (challenge_key === 'refer') {
         const { count } = await supabase.from('referrals').select('id', { count: 'exact', head: true })
-          .eq('referrer_id', user_id).in('status', ['half_active', 'active']).gte('created_at', weekStart.toISOString());
+          .eq('referrer_id', user_id).eq('status', 'active').gte('created_at', weekStart.toISOString());
         progress = count || 0;
       } else {
         const { count } = await supabase.from('ad_watches').select('id', { count: 'exact', head: true })
