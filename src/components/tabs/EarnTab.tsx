@@ -173,7 +173,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
   useEffect(() => { load(); }, [load]);
 
   const referLink = `https://t.me/Bunnyearnbot?startapp=ref_${telegramId}`;
-  const day1 = referrals.filter(r => r.main_reward_paid || r.status === 'half_active' || r.status === 'active').length;
+  const day1 = referrals.filter(r => r.main_reward_paid || r.status === 'day1_complete' || r.status === 'active').length;
   const day2 = referrals.filter(r => r.partner_reward_paid || r.status === 'active').length;
 
   return (
@@ -216,7 +216,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
         {referrals.map((r) => {
           const statusBadge =
             r.status === 'active'      ? { label: '✅ Completed 150', cls: 'bg-bunny-green/20 text-bunny-green' } :
-            r.status === 'half_active' ? { label: '⚡ Day 1 Done',    cls: 'bg-bunny-gold/20 text-bunny-gold-soft' } :
+            r.status === 'day1_complete' ? { label: '⚡ Day 1 Done',    cls: 'bg-bunny-gold/20 text-bunny-gold-soft' } :
             r.status === 'expired'     ? { label: '❌ Expired',       cls: 'bg-destructive/20 text-destructive' } :
                                          { label: '⏳ Joined +30',    cls: 'bg-bunny-pink/20 text-bunny-pink-light' };
           return (
@@ -230,7 +230,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-muted-foreground">Earned</p>
-                <p className="text-xs font-bold text-gradient-bunny">{Number(r.commission_earned || 0).toFixed(0)} 🐰</p>
+                <p className="text-xs font-bold text-gradient-bunny">{(Number(r.reward_amount || 0) + Number(r.commission_earned || 0)).toFixed(0)} 🐰</p>
               </div>
             </motion.div>
           );
