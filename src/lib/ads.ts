@@ -129,12 +129,16 @@ export async function showGigapubAd(): Promise<number> {
   return secs;
 }
 
-// Try a random network; if it fails, rotate through the remaining pool.
-// Only resolves once an ad has actually been displayed.
+// Reward-claim ads only use ONE network per claim: Adsgram OR GigaPub.
+// We alternate the selected network so the same network is not used every time.
 export async function showRandomAd(): Promise<void> {
-  await showAdsgramBlock1();
+  const last = localStorage.getItem("bunny_last_claim_ad_network");
+  const next = last === "adsgram" ? "gigapub" : "adsgram";
+  localStorage.setItem("bunny_last_claim_ad_network", next);
+  if (next === "gigapub") await showGigapubAd();
+  else await showAdsgramBlock1();
 }
 
 export async function playAutoAd(): Promise<void> {
-  try { await showAdsgramBlock1(); } catch { /* ignore */ }
+  // Disabled: automatic startup ads can overlap with selected GigaPub/Adsgram ads.
 }
