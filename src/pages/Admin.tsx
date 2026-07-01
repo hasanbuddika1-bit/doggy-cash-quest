@@ -110,10 +110,11 @@ function UsersTab() {
       const { data: bonusSetting } = await supabase.from("app_settings").select("value").eq("key", "welcome_bonus").single();
       const welcomeBonus = Number(bonusSetting?.value || 50);
       const idSet = new Set(ids);
-      const [ads, clicks, tasks, refs, codes, withdrawals, weekly, games, shorts] = await Promise.all([
+      const [ads, clicks, taskSubs, taskCompletions, refs, codes, withdrawals, weekly, games, shorts] = await Promise.all([
         fetchAllRows("ad_watches", "user_id, earned"),
         fetchAllRows("clicks", "user_id, earned"),
         fetchAllRows("task_submissions", "user_id, status, task_id"),
+        fetchAllRows("task_completions", "user_id, task_id"),
         fetchAllRows("referrals", "referrer_id, reward_amount, commission_earned, verified, reward_claimed"),
         fetchAllRows("reward_claims", "user_id, amount"),
         fetchAllRows("withdrawals", "user_id, amount, status"),
@@ -121,7 +122,7 @@ function UsersTab() {
         fetchAllRows("game_plays", "user_id, bet, payout"),
         fetchAllRows("short_link_claims", "user_id, amount, status"),
       ]);
-      const taskIds = [...new Set((tasks || []).filter((r: any) => idSet.has(r.user_id)).map((r: any) => String(r.task_id || '')).filter(Boolean))];
+      const taskIds = [...new Set([...(taskSubs || []), ...(taskCompletions || [])].filter((r: any) => idSet.has(r.user_id)).map((r: any) => String(r.task_id || '')).filter(Boolean))];
       const taskTypes: Record<string, string> = {};
       const taskValues: Record<string, number> = {};
       if (taskIds.length) {
@@ -136,11 +137,17 @@ function UsersTab() {
       });
       (ads || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].ads++; counts[r.user_id].earned += Number(r.earned || 0); } });
       (clicks || []).forEach((r: any) => { if (counts[r.user_id]) { counts[r.user_id].clicks++; counts[r.user_id].earned += Number(r.earned || 0); } });
-      (tasks || []).forEach((r: any) => {
+      (taskSubs || []).forEach((r: any) => {
         if (!counts[r.user_id] || r.status !== "approved") return;
         const tv = taskValues[r.task_id] || 0;
         counts[r.user_id].earned += tv;
         taskTypes[r.task_id] === "one_click" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
+      });
+      (taskCompletions || []).forEach((r: any) => {
+        if (!counts[r.user_id]) return;
+        const tv = taskValues[r.task_id] || 0;
+        counts[r.user_id].earned += tv;
+        taskTypes[r.task_id] === "one_click" || taskTypes[r.task_id] === "telegram_bot" ? counts[r.user_id].telegramTasks++ : counts[r.user_id].adminTasks++;
       });
       (refs || []).forEach((r: any) => {
         if (!counts[r.referrer_id]) return;
