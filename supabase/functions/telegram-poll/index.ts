@@ -4,7 +4,7 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/telegram';
 const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
-const MINI_APP_URL = 'https://t.me/Bunnyearnbot?startapp=home';
+const MINI_APP_URL = 'https://t.me/Bunnyearnbot/bunnytoken';
 const MINI_APP_WEB = 'https://doggy-cash-quest.lovable.app';
 const COMMUNITY_URL = 'https://t.me/bunnyearnhub';
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');

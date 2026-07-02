@@ -144,6 +144,22 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
         </Button>
       </motion.div>
 
+      {/* Hive Earn cross-promo */}
+      <motion.button
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => {
+          const url = "https://t.me/Hiveearnbot/play?startapp=ref_HIVE2HMD5CZ";
+          const wa = getTelegramWebApp();
+          if (wa) wa.openTelegramLink(url); else window.open(url, "_blank");
+        }}
+        className="w-full h-14 rounded-2xl border-2 border-amber-400/50 bg-gradient-to-r from-amber-500/25 via-amber-400/15 to-yellow-500/25 font-display font-bold text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(251,191,36,0.25)]"
+      >
+        <span className="text-2xl">🐝</span>
+        <span className="text-amber-200">Hive Earn — Try Our New Mini App</span>
+        <ExternalLink className="w-4 h-4 text-amber-200" />
+      </motion.button>
+
       {/* User Stats */}
       <div>
         <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Your Stats</p>

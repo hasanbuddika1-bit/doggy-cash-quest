@@ -2,63 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* 🐰 Bunny Earn Hub — pastel pink / lavender / gold theme */
+/* 🌌 Bunny Earn Hub — midnight cyan / amber futurist theme */
 @layer base {
   :root {
-    --background: 280 35% 10%;
-    --foreground: 320 40% 96%;
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
 
-    --card: 282 28% 15%;
-    --card-foreground: 320 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 282 28% 15%;
-    --popover-foreground: 320 40% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 330 85% 70%;            /* pink */
-    --primary-foreground: 280 40% 12%;
+    --primary: 189 94% 55%;            /* electric cyan */
+    --primary-foreground: 222 47% 6%;
 
-    --secondary: 145 65% 50%;          /* mint green */
-    --secondary-foreground: 280 40% 12%;
+    --secondary: 152 76% 45%;
+    --secondary-foreground: 222 47% 6%;
 
-    --muted: 282 20% 22%;
-    --muted-foreground: 300 18% 70%;
+    --muted: 222 30% 18%;
+    --muted-foreground: 215 20% 72%;
 
-    --accent: 38 95% 60%;              /* gold */
-    --accent-foreground: 280 40% 12%;
+    --accent: 42 96% 58%;              /* warm amber */
+    --accent-foreground: 222 47% 6%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 320 40% 96%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 282 22% 26%;
-    --input: 282 22% 26%;
-    --ring: 330 85% 70%;
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 189 94% 55%;
 
     --radius: 1rem;
 
-    --sidebar-background: 282 28% 12%;
-    --sidebar-foreground: 320 40% 96%;
-    --sidebar-primary: 330 85% 70%;
-    --sidebar-primary-foreground: 280 40% 12%;
-    --sidebar-accent: 282 25% 18%;
-    --sidebar-accent-foreground: 320 40% 96%;
-    --sidebar-border: 282 22% 26%;
-    --sidebar-ring: 330 85% 70%;
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 189 94% 55%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 222 30% 15%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 189 94% 55%;
 
-    /* Bunny tokens */
-    --bunny-pink: 330 85% 70%;
-    --bunny-pink-light: 335 95% 85%;
-    --bunny-lavender: 270 80% 75%;
-    --bunny-purple: 280 60% 35%;
-    --bunny-purple-deep: 280 70% 18%;
-    --bunny-gold: 42 100% 60%;
-    --bunny-gold-soft: 45 100% 75%;
-    --bunny-green: 145 65% 50%;
-    --bunny-dark: 280 40% 8%;
-    --bunny-card: 282 28% 15%;
+    /* Bunny tokens — remapped so legacy usages inherit the new palette */
+    --bunny-pink: 189 94% 55%;
+    --bunny-pink-light: 189 96% 72%;
+    --bunny-lavender: 262 84% 68%;
+    --bunny-purple: 262 60% 30%;
+    --bunny-purple-deep: 222 60% 12%;
+    --bunny-gold: 42 96% 58%;
+    --bunny-gold-soft: 45 100% 72%;
+    --bunny-green: 152 76% 45%;
+    --bunny-dark: 222 47% 5%;
+    --bunny-card: 222 40% 11%;
 
-    /* Backwards-compat (still used in some components) */
+    /* Backwards-compat */
     --doggy-gold: var(--bunny-gold);
     --doggy-orange: 25 95% 60%;
     --doggy-green: var(--bunny-green);
@@ -72,45 +72,47 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Nunito', sans-serif;
+    font-family: 'Inter', sans-serif;
     overflow-x: hidden;
     background-image:
-      radial-gradient(circle at 12% 18%, hsl(var(--bunny-pink) / 0.18), transparent 38%),
-      radial-gradient(circle at 88% 12%, hsl(var(--bunny-lavender) / 0.18), transparent 42%),
-      radial-gradient(circle at 50% 100%, hsl(var(--bunny-gold) / 0.12), transparent 55%);
+      radial-gradient(circle at 12% 18%, hsl(var(--primary) / 0.15), transparent 42%),
+      radial-gradient(circle at 88% 12%, hsl(var(--bunny-lavender) / 0.14), transparent 46%),
+      radial-gradient(circle at 50% 100%, hsl(var(--accent) / 0.10), transparent 55%);
     background-attachment: fixed;
   }
-  h1, h2, h3, h4, h5, h6 { font-family: 'Fredoka', sans-serif; letter-spacing: -0.01em; }
+  h1, h2, h3, h4, h5, h6 { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+  .font-display { font-family: 'Space Grotesk', sans-serif; }
 }
 
 @layer utilities {
   .text-gradient-bunny {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--bunny-pink)), hsl(var(--bunny-lavender)), hsl(var(--bunny-gold)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--bunny-lavender)), hsl(var(--accent)));
   }
   .text-gradient-gold {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--bunny-gold)), hsl(var(--bunny-gold-soft)));
+    background-image: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--bunny-gold-soft)));
   }
   .text-gradient-pink {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--bunny-pink)), hsl(var(--bunny-pink-light)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--bunny-pink-light)));
   }
   .bg-gradient-bunny {
-    background-image: linear-gradient(135deg, hsl(var(--bunny-pink)), hsl(var(--bunny-lavender)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--bunny-lavender)));
   }
   .bg-gradient-gold {
-    background-image: linear-gradient(135deg, hsl(var(--bunny-gold)), hsl(var(--bunny-gold-soft)));
+    background-image: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--bunny-gold-soft)));
   }
   .bg-gradient-pink {
-    background-image: linear-gradient(135deg, hsl(var(--bunny-pink)), hsl(var(--bunny-pink-light)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--bunny-pink-light)));
   }
   .bg-gradient-green {
-    background-image: linear-gradient(135deg, hsl(var(--bunny-green)), hsl(155, 60%, 38%));
+    background-image: linear-gradient(135deg, hsl(var(--bunny-green)), hsl(160 60% 38%));
   }
-  .glow-pink { box-shadow: 0 0 24px hsl(var(--bunny-pink) / 0.4), 0 0 60px hsl(var(--bunny-lavender) / 0.18); }
-  .glow-gold { box-shadow: 0 0 22px hsl(var(--bunny-gold) / 0.4), 0 0 60px hsl(var(--bunny-gold) / 0.1); }
+  .glow-pink { box-shadow: 0 0 24px hsl(var(--primary) / 0.35), 0 0 60px hsl(var(--bunny-lavender) / 0.18); }
+  .glow-gold { box-shadow: 0 0 22px hsl(var(--accent) / 0.4), 0 0 60px hsl(var(--accent) / 0.1); }
   .glow-green { box-shadow: 0 0 22px hsl(var(--bunny-green) / 0.35); }
+  .glass { @apply bg-white/[0.04] backdrop-blur-md border border-white/10; }
 }
 
 /* Animations */
@@ -141,7 +143,7 @@
 .animate-bounce-in{ animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
 .animate-hop      { animation: hop 2.2s ease-in-out infinite; }
 .shimmer {
-  background: linear-gradient(90deg, transparent, hsl(var(--bunny-pink-light)/0.25), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)/0.18), transparent);
   background-size: 200% 100%;
   animation: shimmer 2.5s linear infinite;
 }

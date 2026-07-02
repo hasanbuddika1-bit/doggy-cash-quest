@@ -772,6 +772,21 @@ function WithdrawalsTab() {
                   {suspicious && ' ⚠️ Inconsistent'}
                 </p>
                 {w.tx_hash && <p className="text-[10px] text-blue-400 break-all">TX: {w.tx_hash}</p>}
+                <div className="flex gap-1 mt-1">
+                  <Button size="sm" variant="outline" className="h-6 text-[9px] px-2"
+                    onClick={async () => {
+                      const r = await adminAction("recompute_balance", { target_user_id: w.user_id });
+                      toast.info(`Balance: ${r.current} | Computed: ${r.computed} (earned ${r.earned} - spent ${r.spent})`);
+                    }}
+                  >Check Balance</Button>
+                  <Button size="sm" variant="destructive" className="h-6 text-[9px] px-2"
+                    onClick={async () => {
+                      const r = await adminAction("recompute_balance", { target_user_id: w.user_id, apply: true });
+                      toast.success(r.applied ? `✅ Fixed to ${r.computed}` : `Balance ${r.current} <= computed ${r.computed}, no change`);
+                      loadWithdrawals();
+                    }}
+                  >Fix (reduce)</Button>
+                </div>
               </div>
             </div>
             <p className={`text-xs font-bold mt-1 ${w.status === 'approved' ? 'text-green-400' : w.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'}`}>

@@ -11,6 +11,7 @@ import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
+import { HiveEarnPopup } from "@/components/HiveEarnPopup";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
 
@@ -132,6 +133,8 @@ const Index = () => {
       {user && !user.notifications_enabled && (
         <NotificationGate userId={userId} telegramId={user.telegram_id} onAllow={refreshUser} />
       )}
+
+      <HiveEarnPopup />
     </div>
   );
 };
