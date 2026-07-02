@@ -605,6 +605,39 @@ Deno.serve(async (req) => {
       await supabase.from('app_settings').upsert({ key: body.key, value: body.value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    if (action === 'admin_recompute_balance') {
+      const { target_user_id } = body;
+      const [ads, clicks, codes, weekly, games, shorts, refs, wds, u] = await Promise.all([
+        supabase.from('ad_watches').select('earned').eq('user_id', target_user_id),
+        supabase.from('clicks').select('earned').eq('user_id', target_user_id),
+        supabase.from('reward_claims').select('amount').eq('user_id', target_user_id),
+        supabase.from('weekly_challenge_claims').select('amount').eq('user_id', target_user_id),
+        supabase.from('game_plays').select('bet, payout').eq('user_id', target_user_id),
+        supabase.from('short_link_claims').select('amount').eq('user_id', target_user_id).eq('status', 'claimed'),
+        supabase.from('referrals').select('reward_amount, commission_earned').eq('referrer_id', target_user_id).eq('reward_claimed', true),
+        supabase.from('withdrawals').select('amount, status').eq('user_id', target_user_id),
+        supabase.from('users').select('balance, welcome_bonus_claimed').eq('id', target_user_id).single(),
+      ]);
+      let earned = 0;
+      (ads.data || []).forEach((r: any) => earned += Number(r.earned || 0));
+      (clicks.data || []).forEach((r: any) => earned += Number(r.earned || 0));
+      (codes.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+      (weekly.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+      (shorts.data || []).forEach((r: any) => earned += Number(r.amount || 0));
+      (games.data || []).forEach((r: any) => earned += Number(r.payout || 0) - Number(r.bet || 0));
+      (refs.data || []).forEach((r: any) => earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0));
+      if ((u.data as any)?.welcome_bonus_claimed) earned += 30;
+      const spent = (wds.data || []).filter((w: any) => w.status !== 'rejected').reduce((s: number, w: any) => s + Number(w.amount || 0), 0);
+      const computed = Math.max(0, earned - spent);
+      const current = Number((u.data as any)?.balance || 0);
+      let applied = false;
+      // Only decrease if balance is above computed (per user's "wrong nam adu karanna" rule)
+      if (body.apply === true && current > computed) {
+        await supabase.from('users').update({ balance: computed }).eq('id', target_user_id);
+        applied = true;
+      }
+      return new Response(JSON.stringify({ success: true, current, computed, earned, spent, applied }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     if (action === 'admin_create_short_link') {
       const { title, short_url, reward_amount, active, sort_order } = body.link_data || {};
       if (!title || !short_url) throw new Error('Title and short URL required');
