@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     });
     await addHistory(supabase, user_id, 'withdrawal_pending', -Number(amount), '💸 Withdrawal Requested', `${methodLabel} pending approval`);
 
-    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address, aptos_address: null };
+    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address };
     await supabase.from('users').update(update).eq('id', user_id);
 
     const amountLine = isTon && tonAmount ? `🪙 GRAM: <b>${tonAmount} GRAM</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;

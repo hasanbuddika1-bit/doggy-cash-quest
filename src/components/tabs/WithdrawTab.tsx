@@ -115,8 +115,13 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
     setLoading(true);
     try {
-      toast.info("📺 Watch a quick ad to submit...");
-      await showRandomAd();
+      // Play a single ad best-effort. Failures MUST NOT block the withdrawal.
+      try {
+        toast.info("📺 Quick ad before submitting...");
+        await showRandomAd();
+      } catch (adErr) {
+        console.warn("Withdraw ad skipped:", adErr);
+      }
       const result = await submitWithdrawal(userId, Number(amount), walletAddress, method);
       if (result.success) { toast.success("📤 Withdrawal submitted!"); setAmount(""); loadHistory(); loadStats(); }
       else toast.error(result.message || "Withdrawal failed");

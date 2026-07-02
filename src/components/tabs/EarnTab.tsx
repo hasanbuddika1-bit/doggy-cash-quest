@@ -172,7 +172,7 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
 
   useEffect(() => { load(); }, [load]);
 
-  const referLink = `https://t.me/Bunnyearnbot?startapp=ref_${telegramId}`;
+  const referLink = `https://t.me/Bunnyearnbot/bunnytoken?startapp=ref_${telegramId}`;
   const day1 = referrals.filter(r => r.main_reward_paid || r.status === 'day1_complete' || r.status === 'active').length;
   const day2 = referrals.filter(r => r.partner_reward_paid || r.status === 'active').length;
 
