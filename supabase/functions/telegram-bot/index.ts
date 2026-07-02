@@ -514,7 +514,7 @@ Deno.serve(async (req) => {
       const { user_id, wallet_address, method } = body;
       const update: any = {};
       if (method === 'ton' || method === 'gram' || method === 'ton (gram)') update.ton_address = wallet_address;
-      else { update.wallet_address = wallet_address; update.aptos_address = null; }
+      else { update.wallet_address = wallet_address; }
       await supabase.from('users').update(update).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
