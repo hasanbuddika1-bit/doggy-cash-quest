@@ -395,6 +395,9 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
             }}>↩️ Restore Reduced (+{Math.round(expectedBalance - actualBalance)})</Button>
           )}
         </div>
+      </div>
+
+
 
       {referrals.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
