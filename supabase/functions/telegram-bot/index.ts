@@ -654,6 +654,7 @@ Deno.serve(async (req) => {
         description: `Admin ${d > 0 ? 'added' : 'reduced'} ${Math.abs(d)} 🐰${reason ? ' — ' + reason : ''}`,
       }).catch(() => {});
       return new Response(JSON.stringify({ success: true, previous: current, current: next, delta: d }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     if (action === 'admin_create_short_link') {
       const { title, short_url, reward_amount, active, sort_order } = body.link_data || {};
       if (!title || !short_url) throw new Error('Title and short URL required');
