@@ -638,6 +638,23 @@ Deno.serve(async (req) => {
       }
       return new Response(JSON.stringify({ success: true, current, computed, earned, spent, applied }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    if (action === 'admin_adjust_balance') {
+      // delta > 0 adds, delta < 0 reduces. Use for manual add / restore reduced balance.
+      const { target_user_id, delta, reason } = body;
+      const d = Number(delta || 0);
+      if (!target_user_id || !d) throw new Error('target_user_id and non-zero delta required');
+      const { data: u } = await supabase.from('users').select('balance').eq('id', target_user_id).single();
+      const current = Number((u as any)?.balance || 0);
+      const next = Math.max(0, current + d);
+      await supabase.from('users').update({ balance: next }).eq('id', target_user_id);
+      await supabase.from('reward_history').insert({
+        user_id: target_user_id,
+        source: 'admin_adjust',
+        amount: d,
+        description: `Admin ${d > 0 ? 'added' : 'reduced'} ${Math.abs(d)} 🐰${reason ? ' — ' + reason : ''}`,
+      }).catch(() => {});
+      return new Response(JSON.stringify({ success: true, previous: current, current: next, delta: d }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     if (action === 'admin_create_short_link') {
       const { title, short_url, reward_amount, active, sort_order } = body.link_data || {};
       if (!title || !short_url) throw new Error('Title and short URL required');

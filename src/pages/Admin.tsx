@@ -367,7 +367,37 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
           <p className="font-bold">Actual Balance: <b>{actualBalance.toFixed(2)} 🐰</b></p>
           <p className={`font-bold ${accurate ? 'text-green-400' : 'text-destructive'}`}>Difference: {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 🐰</p>
         </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" className="h-7 text-[10px]" onClick={async () => {
+            const s = window.prompt("Add balance (🐰)", "100");
+            const amt = Number(s || 0);
+            if (!amt || amt <= 0) return;
+            const r = await adminAction("adjust_balance", { target_user_id: user.id, delta: amt, reason: "manual add" });
+            toast.success(`✅ +${amt} 🐰 → ${r.current}`);
+            onRefresh();
+          }}>➕ Add Balance</Button>
+          <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={async () => {
+            const s = window.prompt("Reduce balance (🐰)", "100");
+            const amt = Number(s || 0);
+            if (!amt || amt <= 0) return;
+            const r = await adminAction("adjust_balance", { target_user_id: user.id, delta: -amt, reason: "manual reduce" });
+            toast.success(`➖ -${amt} 🐰 → ${r.current}`);
+            onRefresh();
+          }}>➖ Reduce</Button>
+          {diff < -0.5 && (
+            <Button size="sm" variant="outline" className="h-7 text-[10px] border-green-600 text-green-400" onClick={async () => {
+              const restore = Math.round(expectedBalance - actualBalance);
+              if (restore <= 0) return;
+              if (!window.confirm(`Restore +${restore} 🐰 to match expected?`)) return;
+              const r = await adminAction("adjust_balance", { target_user_id: user.id, delta: restore, reason: "restore reduced" });
+              toast.success(`↩️ Restored +${restore} → ${r.current}`);
+              onRefresh();
+            }}>↩️ Restore Reduced (+{Math.round(expectedBalance - actualBalance)})</Button>
+          )}
+        </div>
       </div>
+
+
 
       {referrals.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
