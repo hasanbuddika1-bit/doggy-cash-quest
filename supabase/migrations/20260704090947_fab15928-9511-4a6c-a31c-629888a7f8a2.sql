@@ -1,0 +1,1 @@
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS suspend_immunity boolean NOT NULL DEFAULT false;
