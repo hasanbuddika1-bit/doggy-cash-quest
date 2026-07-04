@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { claimRewardCode } from "@/lib/api";
-import { showRandomAd } from "@/lib/ads";
+import { showRandomAd, showAdsgramBlock1 } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import bunnyLogo from "@/assets/bunny-logo.png";
 import { GuideButton } from "@/components/GuideButton";
