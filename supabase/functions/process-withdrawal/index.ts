@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     if (Number(user.balance) < amount) return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const earnedEstimate = await estimateEarned(supabase, user_id);
-    if (earnedEstimate > 0 && Number(user.balance) > earnedEstimate + 1000) {
+    if (!user.suspend_immunity && earnedEstimate > 0 && Number(user.balance) > earnedEstimate + 1000) {
       const reason = `Auto-suspend: suspicious balance (${Number(user.balance).toFixed(0)} > earned ${earnedEstimate.toFixed(0)})`;
       await supabase.from('users').update({ banned: true, suspension_reason: reason, suspended_at: new Date().toISOString() }).eq('id', user_id);
       await sendTelegram('sendMessage', { chat_id: ADMIN_CHAT_ID, text: `🚫 <b>Auto-Suspend on Withdraw</b>\n\nUser: @${user.username || 'unknown'}\nTG ID: <code>${user.telegram_id}</code>\nReason: ${reason}`, parse_mode: 'HTML' }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
