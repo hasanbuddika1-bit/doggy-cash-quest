@@ -71,13 +71,14 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
   ];
 
   // Play Adsgram Block 1 ad on every tap inside the Home area (with 3s guard to prevent spam)
-  const lastHomeAdRef = useState<{ t: number }>({ t: 0 })[0];
+  const lastHomeAdRef = useRef(0);
   function handleHomeTouch() {
     const now = Date.now();
-    if (now - lastHomeAdRef.t < 3000) return;
-    lastHomeAdRef.t = now;
+    if (now - lastHomeAdRef.current < 3000) return;
+    lastHomeAdRef.current = now;
     showAdsgramBlock1().catch(() => { /* ignore: another ad playing / SDK not ready */ });
   }
+
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-5" onClick={handleHomeTouch}>
