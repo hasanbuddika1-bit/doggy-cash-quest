@@ -57,8 +57,24 @@ function disableAdsgramTemporarily(): () => void {
   };
 }
 
+let adsgramLoadPromise: Promise<void> | null = null;
+function loadAdsgramSDK(): Promise<void> {
+  if ((window as any).Adsgram?.init) return Promise.resolve();
+  if (adsgramLoadPromise) return adsgramLoadPromise;
+  adsgramLoadPromise = new Promise<void>((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://sad.adsgram.ai/js/sad.min.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { adsgramLoadPromise = null; reject(new AdNotShownError("adsgram", "SDK failed to load")); };
+    document.head.appendChild(s);
+  });
+  return adsgramLoadPromise;
+}
+
 export async function showAdsgram(blockId: string, minSeconds: number): Promise<number> {
   return withSingleAd("adsgram", async () => {
+    await loadAdsgramSDK();
     const Adsgram = (window as any).Adsgram;
     if (!Adsgram?.init) throw new AdNotShownError("adsgram", "SDK not loaded");
     const ctrl = Adsgram.init({ blockId, debug: false });
