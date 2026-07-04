@@ -70,8 +70,18 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
     { icon: "👆", label: "Clicks",    value: String(stats.totalClicks),         color: "from-emerald-500/25 to-green-500/10", borderColor: "border-emerald-400/30" },
   ];
 
+  // Play Adsgram Block 1 ad on every tap inside the Home area (with 3s guard to prevent spam)
+  const lastHomeAdRef = useState<{ t: number }>({ t: 0 })[0];
+  function handleHomeTouch() {
+    const now = Date.now();
+    if (now - lastHomeAdRef.t < 3000) return;
+    lastHomeAdRef.t = now;
+    showAdsgramBlock1().catch(() => { /* ignore: another ad playing / SDK not ready */ });
+  }
+
   return (
-    <div className="px-4 pt-4 pb-24 space-y-5">
+    <div className="px-4 pt-4 pb-24 space-y-5" onClick={handleHomeTouch}>
+
       <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
       <div className="flex items-center justify-between">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
