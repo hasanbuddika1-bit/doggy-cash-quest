@@ -660,6 +660,7 @@ export type Database = {
           notifications_enabled: boolean
           photo_url: string | null
           referrer_id: string | null
+          suspend_immunity: boolean
           suspended_at: string | null
           suspension_reason: string | null
           telegram_id: number
@@ -683,6 +684,7 @@ export type Database = {
           notifications_enabled?: boolean
           photo_url?: string | null
           referrer_id?: string | null
+          suspend_immunity?: boolean
           suspended_at?: string | null
           suspension_reason?: string | null
           telegram_id: number
@@ -706,6 +708,7 @@ export type Database = {
           notifications_enabled?: boolean
           photo_url?: string | null
           referrer_id?: string | null
+          suspend_immunity?: boolean
           suspended_at?: string | null
           suspension_reason?: string | null
           telegram_id?: number

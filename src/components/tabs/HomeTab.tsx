@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Tv, ExternalLink, Gift, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { claimRewardCode } from "@/lib/api";
-import { showRandomAd } from "@/lib/ads";
+import { showRandomAd, showAdsgramBlock1 } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import bunnyLogo from "@/assets/bunny-logo.png";
 import { GuideButton } from "@/components/GuideButton";
@@ -70,8 +70,19 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
     { icon: "👆", label: "Clicks",    value: String(stats.totalClicks),         color: "from-emerald-500/25 to-green-500/10", borderColor: "border-emerald-400/30" },
   ];
 
+  // Play Adsgram Block 1 ad on every tap inside the Home area (with 3s guard to prevent spam)
+  const lastHomeAdRef = useRef(0);
+  function handleHomeTouch() {
+    const now = Date.now();
+    if (now - lastHomeAdRef.current < 3000) return;
+    lastHomeAdRef.current = now;
+    showAdsgramBlock1().catch(() => { /* ignore: another ad playing / SDK not ready */ });
+  }
+
+
   return (
-    <div className="px-4 pt-4 pb-24 space-y-5">
+    <div className="px-4 pt-4 pb-24 space-y-5" onClick={handleHomeTouch}>
+
       <RewardPopup show={reward.show} amount={reward.amount} message="CODE REDEEMED!" onClose={() => setReward({ show: false, amount: 0 })} />
       <div className="flex items-center justify-between">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
