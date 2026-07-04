@@ -580,7 +580,11 @@ Deno.serve(async (req) => {
       for (const key of ['banned', 'access_tasks_completed', 'wallet_address', 'aptos_address', 'ton_address', 'suspension_reason'] as const) {
         if (Object.prototype.hasOwnProperty.call(updates || {}, key)) safeUpdates[key] = updates[key];
       }
-      if (safeUpdates.banned === false) { safeUpdates.suspension_reason = null; safeUpdates.suspended_at = null; }
+      if (safeUpdates.banned === false) {
+        safeUpdates.suspension_reason = null;
+        safeUpdates.suspended_at = null;
+        safeUpdates.suspend_immunity = true; // Admin-unbanned users are never auto-suspended again
+      }
       if (safeUpdates.banned === true && !safeUpdates.suspension_reason) {
         safeUpdates.suspension_reason = 'Suspicious activity detected by admin';
         safeUpdates.suspended_at = new Date().toISOString();
