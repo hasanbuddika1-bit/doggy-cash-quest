@@ -14,6 +14,7 @@ import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { HiveEarnPopup } from "@/components/HiveEarnPopup";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
+import { showAdsgramBlock1 } from "@/lib/ads";
 
 type AppState = "loading" | "main" | "banned" | "maintenance";
 const ADMIN_TELEGRAM_ID = 5419054691;
@@ -86,6 +87,12 @@ const Index = () => {
     if (data) setUser(data);
   }, [userId]);
 
+  const handleTabChange = useCallback((tab: string) => {
+    if (tab === "home") showAdsgramBlock1().catch(() => { /* ignore: another ad is already playing */ });
+    setActiveTab(tab);
+    refreshUser();
+  }, [refreshUser]);
+
   if (appState === "loading") return <LoadingScreen progress={progress} />;
 
   if (appState === "banned") {
@@ -128,7 +135,7 @@ const Index = () => {
           {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} />}
         </AnimatePresence>
       </div>
-      <BottomNav activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); refreshUser(); }} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       {user && !user.notifications_enabled && (
         <NotificationGate userId={userId} telegramId={user.telegram_id} onAllow={refreshUser} />

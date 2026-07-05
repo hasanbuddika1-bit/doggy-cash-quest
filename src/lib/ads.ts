@@ -17,6 +17,8 @@ export const MONETAG_ZONE = "11090694";
 export const MONETIX_ID = "MX-38D29668";
 export const ADEXIUM_WID = "de7a9891-5239-4120-80ee-4c3050e7b0ae";
 
+const OLD_ADSGRAM_BLOCK_ERROR = /AdsgramError|blockId\s*=\s*34573|blockId\s*=\s*int-35465|doggy-cash-quest\.vercel\.app/i;
+
 export class AdClosedEarlyError extends Error {
   constructor(public seconds: number, public minRequired: number) {
     super(`Ad was closed early (${seconds}s / ${minRequired}s required)`);
@@ -39,6 +41,71 @@ async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T
   }
 }
 
+// Some third-party SDKs used before can still try to show the old Adsgram block
+// from cache/auto-init. Suppress only that stale native alert; valid app alerts stay untouched.
+function installOldAdsgramBlockGuard() {
+  const w = window as any;
+  if (w.__bunnyOldAdsgramBlockGuardInstalled) return;
+  w.__bunnyOldAdsgramBlockGuardInstalled = true;
+
+  const originalAlert = window.alert.bind(window);
+  window.alert = (message?: any) => {
+    const text = String(message ?? "");
+    if (OLD_ADSGRAM_BLOCK_ERROR.test(text)) return;
+    originalAlert(message);
+  };
+
+  const webApp = w.Telegram?.WebApp;
+  if (webApp?.showAlert) {
+    const originalShowAlert = webApp.showAlert.bind(webApp);
+    webApp.showAlert = (message: string, callback?: () => void) => {
+      const text = String(message ?? "");
+      if (OLD_ADSGRAM_BLOCK_ERROR.test(text)) {
+        callback?.();
+        return;
+      }
+      return originalShowAlert(message, callback);
+    };
+  }
+
+  if (webApp?.showPopup) {
+    const originalShowPopup = webApp.showPopup.bind(webApp);
+    webApp.showPopup = (params: { title?: string; message?: string; [key: string]: unknown }, callback?: (buttonId: string) => void) => {
+      const text = `${String(params?.title ?? "")} ${String(params?.message ?? "")}`;
+      if (OLD_ADSGRAM_BLOCK_ERROR.test(text)) {
+        callback?.("close");
+        return;
+      }
+      return originalShowPopup(params, callback);
+    };
+  }
+}
+
+if (typeof window !== "undefined") installOldAdsgramBlockGuard();
+
+function loadScriptOnce(id: string, src: string, attrs?: Record<string, string>): Promise<void> {
+  const existing = document.getElementById(id) as HTMLScriptElement | null;
+  if (existing?.dataset.loaded === "true") return Promise.resolve();
+  if (existing?.dataset.loading === "true") {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`${id} failed to load`)), { once: true });
+    });
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const s = document.createElement("script");
+    s.id = id;
+    s.src = src;
+    s.async = true;
+    s.dataset.loading = "true";
+    Object.entries(attrs || {}).forEach(([key, value]) => s.setAttribute(key, value));
+    s.onload = () => { s.dataset.loaded = "true"; resolve(); };
+    s.onerror = () => reject(new Error(`${id} failed to load`));
+    document.head.appendChild(s);
+  });
+}
+
 // Fully isolate Adsgram SDK so other networks (esp. GigaPub) can't trigger an
 // Adsgram auto-popup like "Platform App url for blockId = XXXX not equal to ...".
 function disableAdsgramTemporarily(): () => void {
@@ -59,6 +126,7 @@ function disableAdsgramTemporarily(): () => void {
 
 let adsgramLoadPromise: Promise<void> | null = null;
 function loadAdsgramSDK(): Promise<void> {
+  installOldAdsgramBlockGuard();
   if ((window as any).Adsgram?.init) return Promise.resolve();
   if (adsgramLoadPromise) return adsgramLoadPromise;
   adsgramLoadPromise = new Promise<void>((resolve, reject) => {
@@ -94,6 +162,7 @@ export async function showMonetagAd(): Promise<number> {
   return withSingleAd("monetag", async () => {
     const restore = disableAdsgramTemporarily();
     try {
+      await loadScriptOnce("bunny-monetag-sdk", "https://libtl.com/sdk.js", { "data-zone": MONETAG_ZONE, "data-sdk": `show_${MONETAG_ZONE}` });
       const fn = (window as any)[`show_${MONETAG_ZONE}`];
       if (typeof fn !== "function") throw new AdNotShownError("monetag", "SDK not loaded");
       const start = Date.now();
@@ -117,6 +186,7 @@ export async function showAdexiumAd(): Promise<number> {
   return withSingleAd("adexium", async () => {
     const restore = disableAdsgramTemporarily();
     try {
+      await loadScriptOnce("bunny-adexium-sdk", "https://cdn.tgads.space/assets/js/adexium-widget.min.js");
       const AdexiumWidget = (window as any).AdexiumWidget;
       if (typeof AdexiumWidget !== "function") throw new AdNotShownError("adexium", "SDK not loaded");
       const widget = new AdexiumWidget({ wid: ADEXIUM_WID, adFormat: "interstitial" });
@@ -151,6 +221,7 @@ export async function showMonetixAd(): Promise<number> {
   return withSingleAd("monetix", async () => {
     const restore = disableAdsgramTemporarily();
     try {
+      await loadScriptOnce("bunny-monetix-sdk", "https://www.monetixads.online/ads.js", { "data-mxid": MONETIX_ID });
       const showRewardAd = (window as any).showRewardAd;
       if (typeof showRewardAd !== "function") throw new AdNotShownError("monetix", "SDK not loaded");
       const start = Date.now();
@@ -176,6 +247,7 @@ export async function showGigapubAd(): Promise<number> {
   return withSingleAd("gigapub", async () => {
     const restore = disableAdsgramTemporarily();
     try {
+      await loadScriptOnce("bunny-gigapub-sdk", "https://ad.gigapub.tech/script?id=6859");
       const showGiga = (window as any).showGiga;
       if (typeof showGiga !== "function") throw new AdNotShownError("gigapub", "SDK not loaded");
       const start = Date.now();
