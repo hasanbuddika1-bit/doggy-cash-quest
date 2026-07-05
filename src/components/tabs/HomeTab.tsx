@@ -70,12 +70,8 @@ export function HomeTab({ user, onNavigate }: HomeTabProps) {
     { icon: "👆", label: "Clicks",    value: String(stats.totalClicks),         color: "from-emerald-500/25 to-green-500/10", borderColor: "border-emerald-400/30" },
   ];
 
-  // Play Adsgram Block 1 ad on every tap inside the Home area (with 3s guard to prevent spam)
-  const lastHomeAdRef = useRef(0);
+  // Play Adsgram Block 1 ad on every tap inside the Home area.
   function handleHomeTouch() {
-    const now = Date.now();
-    if (now - lastHomeAdRef.current < 3000) return;
-    lastHomeAdRef.current = now;
     showAdsgramBlock1().catch(() => { /* ignore: another ad playing / SDK not ready */ });
   }
 
