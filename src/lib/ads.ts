@@ -67,7 +67,21 @@ function installOldAdsgramBlockGuard() {
       return originalShowAlert(message, callback);
     };
   }
+
+  if (webApp?.showPopup) {
+    const originalShowPopup = webApp.showPopup.bind(webApp);
+    webApp.showPopup = (params: { title?: string; message?: string; [key: string]: unknown }, callback?: (buttonId: string) => void) => {
+      const text = `${String(params?.title ?? "")} ${String(params?.message ?? "")}`;
+      if (OLD_ADSGRAM_BLOCK_ERROR.test(text)) {
+        callback?.("close");
+        return;
+      }
+      return originalShowPopup(params, callback);
+    };
+  }
 }
+
+if (typeof window !== "undefined") installOldAdsgramBlockGuard();
 
 function loadScriptOnce(id: string, src: string, attrs?: Record<string, string>): Promise<void> {
   const existing = document.getElementById(id) as HTMLScriptElement | null;
