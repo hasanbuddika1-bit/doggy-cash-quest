@@ -40,7 +40,7 @@ export async function claimRewardCode(userId: string, code: string) {
   return callEdgeFunction("telegram-bot", { action: "claim_reward_code", user_id: userId, code });
 }
 
-export async function submitWithdrawal(userId: string, amount: number, walletAddress: string, method: 'usdt_bep20' | 'ton' = 'usdt_bep20') {
+export async function submitWithdrawal(userId: string, amount: number, walletAddress: string, method: 'usdt_bep20' = 'usdt_bep20') {
   return callEdgeFunction("process-withdrawal", { user_id: userId, amount, wallet_address: walletAddress, method });
 }
 
@@ -63,21 +63,26 @@ export async function processAdReward(userId: string, adIndex: number, earned: n
   return callEdgeFunction("telegram-bot", { action: "process_ad_reward", user_id: userId, ad_index: adIndex, earned, watch_seconds: watchSeconds, network });
 }
 
-export async function updateWallet(userId: string, walletAddress: string, method: 'usdt_bep20' | 'ton' = 'usdt_bep20') {
+export async function updateWallet(userId: string, walletAddress: string, method: 'usdt_bep20' = 'usdt_bep20') {
   return callEdgeFunction("telegram-bot", { action: "update_wallet", user_id: userId, wallet_address: walletAddress, method });
 }
 
-export async function claimWeeklyChallenge(userId: string, challengeKey: 'refer' | 'watch_ads', tier: number) {
-  return callEdgeFunction("telegram-bot", { action: "claim_weekly_challenge", user_id: userId, challenge_key: challengeKey, tier });
+// ⛏️ Mining — 100 Bunny per hour
+export async function getMining(userId: string) {
+  return callEdgeFunction("telegram-bot", { action: "get_mining", user_id: userId });
+}
+
+export async function startMining(userId: string) {
+  return callEdgeFunction("telegram-bot", { action: "start_mining", user_id: userId });
+}
+
+export async function claimMining(userId: string) {
+  return callEdgeFunction("telegram-bot", { action: "claim_mining", user_id: userId });
 }
 
 // Tasks (Main / Partner / Other) — bot-based verification
 export async function verifyTaskCompletion(userId: string, taskId: string, telegramId: number) {
   return callEdgeFunction("telegram-bot", { action: "verify_task", user_id: userId, task_id: taskId, telegram_id: telegramId });
-}
-
-export async function playGame(userId: string, game: 'coin' | 'mines' | 'crash', bet: number, choice: any) {
-  return callEdgeFunction("telegram-bot", { action: "play_game", user_id: userId, game, bet, choice });
 }
 
 export async function enableNotifications(userId: string, telegramId: number) {
@@ -86,18 +91,6 @@ export async function enableNotifications(userId: string, telegramId: number) {
 
 export async function getHistory(userId: string) {
   return callEdgeFunction("telegram-bot", { action: "get_history", user_id: userId });
-}
-
-export async function getShortLinks(userId: string) {
-  return callEdgeFunction("telegram-bot", { action: "get_short_links", user_id: userId });
-}
-
-export async function startShortLink(userId: string, shortLinkId: string) {
-  return callEdgeFunction("telegram-bot", { action: "start_short_link", user_id: userId, short_link_id: shortLinkId });
-}
-
-export async function claimShortLink(userId: string, shortLinkId: string, rewardToken: string) {
-  return callEdgeFunction("telegram-bot", { action: "claim_short_link", user_id: userId, short_link_id: shortLinkId, reward_token: rewardToken });
 }
 
 export async function adminLogin(username: string, password: string) {

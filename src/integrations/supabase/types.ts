@@ -177,38 +177,52 @@ export type Database = {
           },
         ]
       }
-      game_plays: {
+      mining_sessions: {
         Row: {
-          bet: number
+          amount: number
+          claimed: boolean
+          claimed_at: string | null
           created_at: string
-          game: string
+          ends_at: string
           id: string
-          meta: Json | null
-          payout: number
+          notified: boolean
+          started_at: string
+          updated_at: string
           user_id: string
-          won: boolean
         }
         Insert: {
-          bet: number
+          amount?: number
+          claimed?: boolean
+          claimed_at?: string | null
           created_at?: string
-          game: string
+          ends_at: string
           id?: string
-          meta?: Json | null
-          payout?: number
+          notified?: boolean
+          started_at?: string
+          updated_at?: string
           user_id: string
-          won?: boolean
         }
         Update: {
-          bet?: number
+          amount?: number
+          claimed?: boolean
+          claimed_at?: string | null
           created_at?: string
-          game?: string
+          ends_at?: string
           id?: string
-          meta?: Json | null
-          payout?: number
+          notified?: boolean
+          started_at?: string
+          updated_at?: string
           user_id?: string
-          won?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mining_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       referrals: {
         Row: {
@@ -382,99 +396,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      short_link_claims: {
-        Row: {
-          amount: number
-          claimed_at: string | null
-          id: string
-          next_available_at: string | null
-          reward_token: string
-          short_link_id: string
-          started_at: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          amount?: number
-          claimed_at?: string | null
-          id?: string
-          next_available_at?: string | null
-          reward_token: string
-          short_link_id: string
-          started_at?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          claimed_at?: string | null
-          id?: string
-          next_available_at?: string | null
-          reward_token?: string
-          short_link_id?: string
-          started_at?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "short_link_claims_short_link_id_fkey"
-            columns: ["short_link_id"]
-            isOneToOne: false
-            referencedRelation: "short_links"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "short_link_claims_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      short_links: {
-        Row: {
-          active: boolean
-          created_at: string
-          daily_cooldown_hours: number
-          id: string
-          max_claims_per_user: number
-          reward_amount: number
-          reward_token: string
-          short_url: string
-          sort_order: number
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          daily_cooldown_hours?: number
-          id?: string
-          max_claims_per_user?: number
-          reward_amount?: number
-          reward_token?: string
-          short_url: string
-          sort_order?: number
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          daily_cooldown_hours?: number
-          id?: string
-          max_claims_per_user?: number
-          reward_amount?: number
-          reward_token?: string
-          short_url?: string
-          sort_order?: number
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       task_completions: {
         Row: {
@@ -728,33 +649,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      weekly_challenge_claims: {
-        Row: {
-          amount: number
-          challenge_key: string
-          created_at: string
-          id: string
-          user_id: string
-          week_start: string
-        }
-        Insert: {
-          amount?: number
-          challenge_key: string
-          created_at?: string
-          id?: string
-          user_id: string
-          week_start: string
-        }
-        Update: {
-          amount?: number
-          challenge_key?: string
-          created_at?: string
-          id?: string
-          user_id?: string
-          week_start?: string
-        }
-        Relationships: []
       }
       withdrawals: {
         Row: {

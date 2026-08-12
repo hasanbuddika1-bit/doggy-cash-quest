@@ -42,6 +42,7 @@ export default {
           gold: "hsl(var(--bunny-gold))",
           "gold-soft": "hsl(var(--bunny-gold-soft))",
           green: "hsl(var(--bunny-green))",
+          cyan: "hsl(var(--bunny-cyan))",
           dark: "hsl(var(--bunny-dark))",
           card: "hsl(var(--bunny-card))",
         },
