@@ -1,57 +1,83 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Calendar, Edit, Save, MapPin, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateWallet } from "@/lib/api";
 import { toast } from "sonner";
 import { GuideButton } from "@/components/GuideButton";
+import { WithdrawTab } from "@/components/tabs/WithdrawTab";
+import { HistoryTab } from "@/components/tabs/HistoryTab";
 
 interface ProfileTabProps { user: any; userId: string; }
 
+const SUB_TABS = [
+  { key: "Profile",  icon: "👤" },
+  { key: "Withdraw", icon: "💸" },
+  { key: "History",  icon: "📜" },
+];
+
 export function ProfileTab({ user, userId }: ProfileTabProps) {
-  const [bep20Wallet, setBep20Wallet] = useState(user?.wallet_address || "");
-  const [tonWallet, setTonWallet] = useState(user?.ton_address || "");
-  const [editingBep20, setEditingBep20] = useState(false);
-  const [editingTon, setEditingTon] = useState(false);
+  const [subTab, setSubTab] = useState("Profile");
+
+  return (
+    <div className="px-4 pt-4 pb-24 space-y-4">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {SUB_TABS.map((t) => (
+          <motion.button key={t.key} whileTap={{ scale: 0.95 }} onClick={() => setSubTab(t.key)}
+            className={`px-4 py-2 rounded-2xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all ${
+              subTab === t.key ? "btn-3d text-primary-foreground" : "bg-card border border-bunny-lavender/20 text-muted-foreground"
+            }`}
+          >
+            <span>{t.icon}</span> {t.key}
+          </motion.button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+          {subTab === "Profile"  && <ProfileSection user={user} userId={userId} />}
+          {subTab === "Withdraw" && <WithdrawTab userId={userId} user={user} />}
+          {subTab === "History"  && <HistoryTab userId={userId} />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProfileSection({ user, userId }: ProfileTabProps) {
+  const [wallet, setWallet] = useState(user?.wallet_address || "");
+  const [editing, setEditing] = useState(false);
   const balance = Number(user?.balance || 0);
 
-  async function saveBep20() {
-    if (!bep20Wallet.trim()) { toast.error("Enter address"); return; }
-    await updateWallet(userId, bep20Wallet, 'usdt_bep20');
+  async function saveWallet() {
+    if (!wallet.trim()) { toast.error("Enter address"); return; }
+    await updateWallet(userId, wallet.trim());
     toast.success("✅ USDT (BEP20) wallet saved!");
-    setEditingBep20(false);
-  }
-  async function saveTon() {
-    if (!tonWallet.trim()) { toast.error("Enter address"); return; }
-    await updateWallet(userId, tonWallet, 'ton');
-    toast.success("✅ GRAM (ex TON) wallet saved!");
-    setEditingTon(false);
+    setEditing(false);
   }
 
   const country = user?.country && user.country !== 'UNKNOWN'
     ? `${getCountryFlag(user.country)} ${getCountryName(user.country)}` : '🌍 Detecting...';
 
   return (
-    <div className="px-4 pt-4 pb-24 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="font-display font-bold text-gradient-bunny text-lg">👤 Profile</p>
+        <p className="font-display font-bold text-3d-gold text-lg">👤 Profile</p>
         <GuideButton title="Profile Guide" steps={[
-          "Save your USDT (BEP20) and GRAM (ex TON) wallet addresses here.",
-          "These are used when you withdraw — make sure they are correct!",
-          "Tap the pencil to edit, then Save.",
+          "Save your USDT (BEP20) wallet address here — it is used for withdrawals.",
+          "Withdraw and History are now inside this Profile tab.",
+          "1000 🐰 = $0.01 USDT.",
           "Your Telegram ID is shown for support requests.",
         ]} />
       </div>
 
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-bunny-pink/25 via-card to-bunny-lavender/15 rounded-2xl p-6 border border-bunny-pink/30 text-center"
-      >
-        <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 border-2 border-bunny-pink glow-pink">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="card-3d p-6 text-center">
+        <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 border-2 border-bunny-gold glow-gold">
           {user?.photo_url ? (
             <img src={user.photo_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-bunny flex items-center justify-center text-2xl font-bold text-primary-foreground">
+            <div className="w-full h-full coin-3d flex items-center justify-center text-2xl font-bold text-primary-foreground">
               {(user?.first_name || 'U')[0]}
             </div>
           )}
@@ -67,19 +93,19 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
       </motion.div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-gradient-to-br from-cyan-500/15 to-blue-500/5 rounded-xl p-3 border border-cyan-400/20">
-          <Calendar className="w-4 h-4 text-cyan-300 mb-1" />
+        <div className="card-3d p-3">
+          <Calendar className="w-4 h-4 text-bunny-cyan mb-1" />
           <p className="text-[10px] text-muted-foreground">Joined</p>
           <p className="text-xs font-semibold">{user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</p>
         </div>
-        <div className="bg-gradient-to-br from-bunny-pink/15 to-bunny-lavender/5 rounded-xl p-3 border border-bunny-pink/25">
+        <div className="card-3d p-3">
           <span className="text-lg">🐰</span>
           <p className="text-[10px] text-muted-foreground">Balance</p>
           <p className="text-xs font-semibold">{balance.toFixed(0)} Bunny</p>
         </div>
       </div>
 
-      <div className="bg-gradient-to-br from-bunny-green/15 to-emerald-500/5 rounded-xl p-3 border border-bunny-green/25">
+      <div className="card-3d p-3">
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-bunny-green" />
           <div>
@@ -89,51 +115,30 @@ export function ProfileTab({ user, userId }: ProfileTabProps) {
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-emerald-500/10 to-card rounded-xl p-4 border border-bunny-green/30"
-      >
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-3d p-4">
         <div className="flex justify-between items-center mb-2">
           <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-bunny-green" /> 🟢 USDT (BEP20) Address</p>
-          <button onClick={() => setEditingBep20(!editingBep20)} className="p-1 hover:bg-muted rounded">
+          <button onClick={() => setEditing(!editing)} className="p-1 hover:bg-muted rounded">
             <Edit className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
-        {editingBep20 ? (
+        {editing ? (
           <div className="flex gap-2">
-            <Input value={bep20Wallet} onChange={(e) => setBep20Wallet(e.target.value)} className="h-9 text-xs" placeholder="BEP20/BSC address (0x...)" />
-            <Button size="sm" className="h-9 bg-gradient-green text-white" onClick={saveBep20}><Save className="w-3 h-3" /></Button>
+            <Input value={wallet} onChange={(e) => setWallet(e.target.value)} className="h-9 text-xs" placeholder="BEP20/BSC address (0x...)" />
+            <Button size="sm" className="h-9 bg-gradient-green text-white" onClick={saveWallet}><Save className="w-3 h-3" /></Button>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground font-mono break-all">{bep20Wallet || 'Not set'}</p>
+          <p className="text-xs text-muted-foreground font-mono break-all">{wallet || 'Not set'}</p>
         )}
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-blue-500/10 to-card rounded-xl p-4 border border-blue-400/30"
-      >
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-bold flex items-center gap-1.5"><Wallet className="w-4 h-4 text-blue-400" /> 🔵 GRAM (ex TON) Address</p>
-          <button onClick={() => setEditingTon(!editingTon)} className="p-1 hover:bg-muted rounded">
-            <Edit className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-        {editingTon ? (
-          <div className="flex gap-2">
-            <Input value={tonWallet} onChange={(e) => setTonWallet(e.target.value)} className="h-9 text-xs" placeholder="GRAM address (EQ.../UQ...)" />
-            <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-cyan-600 text-white" onClick={saveTon}><Save className="w-3 h-3" /></Button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground font-mono break-all">{tonWallet || 'Not set'}</p>
-        )}
-      </motion.div>
-
-      <div className="bg-card rounded-xl p-4 border border-bunny-pink/15">
+      <div className="card-3d p-4">
         <p className="text-sm font-bold mb-3">📊 Statistics</p>
         <div className="space-y-2">
           {[
-            { label: "Total Balance", value: `${balance.toFixed(0)} 🐰`, color: "text-bunny-pink-light" },
-            { label: "USDT Value", value: `$${(balance * 0.0001).toFixed(4)}`, color: "text-bunny-green" },
-            { label: "Notifications", value: user?.notifications_enabled ? "✅ Enabled" : "❌ Disabled", color: "text-bunny-gold-soft" },
+            { label: "Total Balance", value: `${balance.toFixed(0)} 🐰`, color: "text-bunny-gold-soft" },
+            { label: "USDT Value", value: `$${(balance * 0.00001).toFixed(4)}`, color: "text-bunny-green" },
+            { label: "Notifications", value: user?.notifications_enabled ? "✅ Enabled" : "❌ Disabled", color: "text-bunny-pink-light" },
           ].map((stat) => (
             <div key={stat.label} className="flex justify-between text-xs">
               <span className="text-muted-foreground">{stat.label}</span>
