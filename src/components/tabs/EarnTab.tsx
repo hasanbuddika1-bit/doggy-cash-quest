@@ -8,15 +8,13 @@ import { processClick } from "@/lib/api";
 import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
 import { RewardPopup } from "@/components/RewardPopup";
-import { ChallengesSection } from "@/components/tabs/ChallengesSection";
 import { GuideButton } from "@/components/GuideButton";
 
 interface EarnTabProps { userId: string; telegramId: number; }
 
 const SUB_TABS = [
-  { key: "Challenges",  icon: "🏆", color: "from-bunny-gold to-amber-500" },
-  { key: "Clicks",      icon: "👆", color: "from-bunny-green to-emerald-600" },
-  { key: "Refer",       icon: "👥", color: "from-bunny-pink to-bunny-lavender" },
+  { key: "Refer",  icon: "👥", color: "from-bunny-pink to-bunny-lavender" },
+  { key: "Clicks", icon: "👆", color: "from-bunny-green to-emerald-600" },
 ];
 
 const CLICK_LINKS = [
@@ -25,7 +23,7 @@ const CLICK_LINKS = [
 ];
 
 export function EarnTab({ userId, telegramId }: EarnTabProps) {
-  const [subTab, setSubTab] = useState("Challenges");
+  const [subTab, setSubTab] = useState("Refer");
 
   return (
     <div className="px-4 pt-4 pb-24">
@@ -33,13 +31,13 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-r from-bunny-pink/20 to-bunny-lavender/20 rounded-2xl px-4 py-3 border border-bunny-pink/30 flex-1 mr-2"
         >
-          <p className="font-display font-bold text-gradient-bunny text-sm">💰 Earn Bunny</p>
-          <p className="text-[11px] text-muted-foreground">Challenges • Clicks • Refer</p>
+          <p className="font-display font-bold text-3d-gold text-sm">👥 Refer & Earn</p>
+          <p className="text-[11px] text-muted-foreground">Invite friends • Sponsor clicks</p>
         </motion.div>
         <GuideButton title="Earn Guide" steps={[
-          "🏆 Challenges: Reach weekly tiers (refers & ads) and claim — resets Sun 24:00 UTC.",
+          "👥 Refer: Join reward 150 🐰, Day 1 ten ads +500 🐰, Day 2 ten ads +700 🐰.",
+          "⏳ Day 1 + Day 2 must be finished within 48 hours or the referral expires.",
           "👆 Clicks: View a sponsor link 10s → earn 5 🐰. Max 2/hour.",
-          "👥 Refer: Join reward 30🐰, Day 1 ten ads +50🐰, Day 2 ten ads +70🐰 within 2 days.",
           "🎁 Reward Codes are now on the Home tab.",
         ]} />
       </div>
@@ -60,7 +58,6 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
 
       <AnimatePresence mode="wait">
         <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-          {subTab === "Challenges" && <ChallengesSection userId={userId} />}
           {subTab === "Clicks"     && <ClicksSection userId={userId} />}
           {subTab === "Refer"      && <ReferSection userId={userId} telegramId={telegramId} />}
         </motion.div>
@@ -183,8 +180,8 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
       >
         <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-4xl inline-block">👥</motion.span>
         <p className="text-xs text-muted-foreground mb-1 mt-2">Total: {referrals.length} • Day 1: {day1} • Day 2: {day2}</p>
-        <p className="text-2xl font-display font-bold text-gradient-bunny">30 + 50 + 70 = 150 🐰</p>
-        <p className="text-[11px] text-muted-foreground mt-1">Join +30 🐰 • Day 1 ten ads +50 🐰 • Day 2 ten ads +70 🐰</p>
+        <p className="text-2xl font-display font-bold text-3d-gold">150 + 500 + 700 = 1350 🐰</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Join +150 🐰 • Day 1 ten ads +500 🐰 • Day 2 ten ads +700 🐰</p>
         <p className="text-[10px] text-destructive mt-1 font-semibold">Must complete within 2 days, otherwise fake referral reward is rejected.</p>
       </motion.div>
 
@@ -215,10 +212,10 @@ function ReferSection({ userId, telegramId }: { userId: string; telegramId: numb
         )}
         {referrals.map((r) => {
           const statusBadge =
-            r.status === 'active'      ? { label: '✅ Completed 150', cls: 'bg-bunny-green/20 text-bunny-green' } :
+            r.status === 'active'      ? { label: '✅ Completed 1350', cls: 'bg-bunny-green/20 text-bunny-green' } :
             r.status === 'day1_complete' ? { label: '⚡ Day 1 Done',    cls: 'bg-bunny-gold/20 text-bunny-gold-soft' } :
             r.status === 'expired'     ? { label: '❌ Expired',       cls: 'bg-destructive/20 text-destructive' } :
-                                         { label: '⏳ Joined +30',    cls: 'bg-bunny-pink/20 text-bunny-pink-light' };
+                                         { label: '⏳ Joined +150',    cls: 'bg-bunny-pink/20 text-bunny-pink-light' };
           return (
             <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
               className="flex items-center justify-between bg-card rounded-xl p-3 border border-bunny-pink/15 mb-2"
