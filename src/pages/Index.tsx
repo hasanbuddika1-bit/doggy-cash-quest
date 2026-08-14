@@ -7,11 +7,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { HomeTab } from "@/components/tabs/HomeTab";
 import { TasksTab } from "@/components/tabs/TasksTab";
 import { EarnTab } from "@/components/tabs/EarnTab";
-import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
-import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
-import { HiveEarnPopup } from "@/components/HiveEarnPopup";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
 import { showAdsgramBlock1 } from "@/lib/ads";
@@ -111,10 +108,10 @@ const Index = () => {
   if (appState === "maintenance") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="bg-card rounded-3xl p-8 border border-bunny-pink/30 text-center max-w-sm glow-pink">
+        <div className="card-3d p-8 text-center max-w-sm glow-gold">
           <span className="text-6xl block mb-4 animate-hop">🛠️</span>
-          <h2 className="text-xl font-display font-bold text-gradient-bunny mb-2">Update in Progress</h2>
-          <p className="text-sm text-muted-foreground mb-2">Bunny Earn Hub is under maintenance.</p>
+          <h2 className="text-xl font-display font-bold text-3d-gold mb-2">Update in Progress</h2>
+          <p className="text-sm text-muted-foreground mb-2">Bunny Earn Hub V2 is under maintenance.</p>
           <p className="text-xs text-muted-foreground">Please come back soon for the new update. 🐰✨</p>
         </div>
       </div>
@@ -126,12 +123,10 @@ const Index = () => {
       <AnimatedBackground />
       <div className="relative z-10">
         <AnimatePresence mode="wait">
-          {activeTab === "home"     && <HomeTab key="home" user={user} onNavigate={(tab) => setActiveTab(tab)} />}
+          {activeTab === "home"     && <HomeTab key="home" user={user} userId={userId} onNavigate={(tab) => setActiveTab(tab)} onBalanceChange={refreshUser} />}
           {activeTab === "tasks"    && <TasksTab key="tasks" userId={userId} telegramId={user?.telegram_id} />}
           {activeTab === "watchads" && <WatchAdsTab key="watchads" userId={userId} />}
           {activeTab === "earn"     && <EarnTab key="earn" userId={userId} telegramId={user?.telegram_id} />}
-          {activeTab === "history"  && <HistoryTab key="history" userId={userId} />}
-          {activeTab === "withdraw" && <WithdrawTab key="withdraw" userId={userId} user={user} />}
           {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} />}
         </AnimatePresence>
       </div>
@@ -140,8 +135,6 @@ const Index = () => {
       {user && !user.notifications_enabled && (
         <NotificationGate userId={userId} telegramId={user.telegram_id} onAllow={refreshUser} />
       )}
-
-      <HiveEarnPopup />
     </div>
   );
 };
