@@ -11,9 +11,12 @@ const MINI_APP_URL = 'https://doggy-cash-quest.lovable.app';
 const BOT_USERNAME = 'Bunnyearnbot';
 const COMMUNITY_CHANNEL = '@bunnyearnhub';
 const PAYMENT_CHANNEL = '@bunnyearnhubpay';
-const REFERRAL_JOIN_REWARD = 30;
-const REFERRAL_DAY1_REWARD = 50;
-const REFERRAL_DAY2_REWARD = 70;
+const REFERRAL_JOIN_REWARD = 150;
+const REFERRAL_DAY1_REWARD = 500;
+const REFERRAL_DAY2_REWARD = 700;
+const REFERRAL_TOTAL = REFERRAL_JOIN_REWARD + REFERRAL_DAY1_REWARD + REFERRAL_DAY2_REWARD;
+const MINING_RATE = 100;          // 🐰 per hour
+const MINING_DURATION_MS = 3600 * 1000;
 
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
@@ -57,10 +60,6 @@ function miniAppButton(label = '🐰 Open Mini App') {
   return { text: label, web_app: { url: MINI_APP_URL } };
 }
 
-function rewardUrlForShortLink(linkId: string, token: string) {
-  return `https://t.me/${BOT_USERNAME}?startapp=sl_${linkId}_${token}`;
-}
-
 async function addHistory(supabase: any, userId: string, type: string, amount: number, title: string, description?: string, meta: any = {}) {
   await supabase.from('reward_history').insert({ user_id: userId, type, amount, title, description, meta });
 }
@@ -81,15 +80,15 @@ async function payReferralReward(supabase: any, referral: any, user: any, amount
   if (ref.telegram_id) {
     await sendTelegram('sendMessage', {
       chat_id: ref.telegram_id,
-      text: `👥🐰 <b>Referral Reward Added!</b>\n\nFriend: @${escHtml(user.username || user.first_name || 'friend')}\n${escHtml(message)}\n\n✅ <b>+${amount} Bunny</b> added.\nTotal referral reward: <b>${newTotal}/150 Bunny</b>\n\nDay 1: 10 ads = +50 🐰\nDay 2: 10 ads = +70 🐰\n⏳ Must be completed within 48 hours to avoid fake referral status.`,
+      text: `👥🐰 <b>Referral Reward Added!</b>\n\nFriend: @${escHtml(user.username || user.first_name || 'friend')}\n${escHtml(message)}\n\n✅ <b>+${amount} Bunny</b> added.\nTotal referral reward: <b>${newTotal}/${REFERRAL_TOTAL} Bunny</b>\n\nDay 1: 10 ads = +${REFERRAL_DAY1_REWARD} 🐰\nDay 2: 10 ads = +${REFERRAL_DAY2_REWARD} 🐰\n⏳ Must be completed within 48 hours to avoid fake referral status.`,
       parse_mode: 'HTML',
       reply_markup: JSON.stringify({ inline_keyboard: [[miniAppButton('🐰 Check Referrals')]] }),
     }, lovableKey, telegramKey);
   }
 }
 
-// Referral system: +30 on join, +50 when referee watches 10 ads in first 24h,
-// +70 when referee watches 10 ads in the second 24h. Incomplete after 48h => expired/fake.
+// Referral system: +150 on join, +500 when referee watches 10 ads in first 24h,
+// +700 when referee watches 10 ads in the second 24h. Incomplete after 48h => expired/fake.
 async function evaluateReferralAdStages(supabase: any, userId: string, lovableKey?: string, telegramKey?: string) {
   const { data: user } = await supabase.from('users').select('id, referrer_id, username, first_name').eq('id', userId).single();
   if (!user?.referrer_id) return;
@@ -511,11 +510,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update_wallet') {
-      const { user_id, wallet_address, method } = body;
-      const update: any = {};
-      if (method === 'ton' || method === 'gram' || method === 'ton (gram)') update.ton_address = wallet_address;
-      else { update.wallet_address = wallet_address; }
-      await supabase.from('users').update(update).eq('id', user_id);
+      const { user_id, wallet_address } = body;
+      await supabase.from('users').update({ wallet_address }).eq('id', user_id);
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -533,44 +529,6 @@ Deno.serve(async (req) => {
         }, LOVABLE_API_KEY, TELEGRAM_API_KEY);
       }
       return new Response(JSON.stringify({ success: true, unlocked: newVal }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    if (action === 'claim_weekly_challenge') {
-      const { user_id, challenge_key, tier } = body;
-      const now = new Date();
-      const day = now.getUTCDay();
-      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day, 0, 0, 0));
-
-      const REFER_TIERS: Record<string, number> = { '5': 50, '10': 150, '50': 500, '100': 1000 };
-      const ADS_TIERS: Record<string, number> = { '10': 5, '50': 75, '100': 200, '500': 300, '1000': 500 };
-      const tiers = challenge_key === 'refer' ? REFER_TIERS : challenge_key === 'watch_ads' ? ADS_TIERS : null;
-      if (!tiers || !(String(tier) in tiers)) return new Response(JSON.stringify({ success: false, message: 'Invalid challenge' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      const required = Number(tier);
-      const reward = tiers[String(tier)];
-
-      let progress = 0;
-      if (challenge_key === 'refer') {
-        const { count } = await supabase.from('referrals').select('id', { count: 'exact', head: true })
-          .eq('referrer_id', user_id).eq('status', 'active').gte('created_at', weekStart.toISOString());
-        progress = count || 0;
-      } else {
-        const { count } = await supabase.from('ad_watches').select('id', { count: 'exact', head: true })
-          .eq('user_id', user_id).gte('created_at', weekStart.toISOString());
-        progress = count || 0;
-      }
-      if (progress < required) return new Response(JSON.stringify({ success: false, message: `Need ${required}, have ${progress}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
-      const claimKey = `${challenge_key}_${tier}`;
-      const { data: existing } = await supabase.from('weekly_challenge_claims').select('id')
-        .eq('user_id', user_id).eq('challenge_key', claimKey).eq('week_start', weekStart.toISOString()).maybeSingle();
-      if (existing) return new Response(JSON.stringify({ success: false, message: 'Already claimed this week' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-
-      await supabase.from('weekly_challenge_claims').insert({ user_id, challenge_key: claimKey, week_start: weekStart.toISOString(), amount: reward });
-      const { data: u } = await supabase.from('users').select('balance').eq('id', user_id).single();
-      await supabase.from('users').update({ balance: Number(u?.balance || 0) + reward }).eq('id', user_id);
-      await addHistory(supabase, user_id, 'weekly_challenge', reward, '🏆 Weekly Challenge', `${challenge_key} tier ${tier}`);
-
-      return new Response(JSON.stringify({ success: true, amount: reward }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Admin CRUD (unchanged)
@@ -611,13 +569,11 @@ Deno.serve(async (req) => {
     }
     if (action === 'admin_recompute_balance') {
       const { target_user_id } = body;
-      const [ads, clicks, codes, weekly, games, shorts, refs, wds, u] = await Promise.all([
+      const [ads, clicks, codes, mining, refs, wds, u] = await Promise.all([
         supabase.from('ad_watches').select('earned').eq('user_id', target_user_id),
         supabase.from('clicks').select('earned').eq('user_id', target_user_id),
         supabase.from('reward_claims').select('amount').eq('user_id', target_user_id),
-        supabase.from('weekly_challenge_claims').select('amount').eq('user_id', target_user_id),
-        supabase.from('game_plays').select('bet, payout').eq('user_id', target_user_id),
-        supabase.from('short_link_claims').select('amount').eq('user_id', target_user_id).eq('status', 'claimed'),
+        supabase.from('mining_sessions').select('amount').eq('user_id', target_user_id).eq('claimed', true),
         supabase.from('referrals').select('reward_amount, commission_earned').eq('referrer_id', target_user_id).eq('reward_claimed', true),
         supabase.from('withdrawals').select('amount, status').eq('user_id', target_user_id),
         supabase.from('users').select('balance, welcome_bonus_claimed').eq('id', target_user_id).single(),
@@ -626,11 +582,8 @@ Deno.serve(async (req) => {
       (ads.data || []).forEach((r: any) => earned += Number(r.earned || 0));
       (clicks.data || []).forEach((r: any) => earned += Number(r.earned || 0));
       (codes.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-      (weekly.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-      (shorts.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-      (games.data || []).forEach((r: any) => earned += Number(r.payout || 0) - Number(r.bet || 0));
+      (mining.data || []).forEach((r: any) => earned += Number(r.amount || 0));
       (refs.data || []).forEach((r: any) => earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0));
-      if ((u.data as any)?.welcome_bonus_claimed) earned += 30;
       const spent = (wds.data || []).filter((w: any) => w.status !== 'rejected').reduce((s: number, w: any) => s + Number(w.amount || 0), 0);
       const computed = Math.max(0, earned - spent);
       const current = Number((u.data as any)?.balance || 0);
@@ -659,124 +612,54 @@ Deno.serve(async (req) => {
       }).catch(() => {});
       return new Response(JSON.stringify({ success: true, previous: current, current: next, delta: d }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    if (action === 'admin_create_short_link') {
-      const { title, short_url, reward_amount, active, sort_order } = body.link_data || {};
-      if (!title || !short_url) throw new Error('Title and short URL required');
-      const { data: link, error } = await supabase.from('short_links').insert({
-        title: String(title).trim(),
-        short_url: String(short_url).trim(),
-        reward_amount: Math.max(0, Number(reward_amount || 0)),
-        active: active !== false,
-        sort_order: Number(sort_order || 0),
-      }).select().single();
-      if (error) throw error;
-      return new Response(JSON.stringify({ success: true, reward_url: rewardUrlForShortLink(link.id, link.reward_token) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // ⛏️ Mining — 100 🐰 per hour
+    if (action === 'get_mining') {
+      const { user_id } = body;
+      const { data: session } = await supabase.from('mining_sessions')
+        .select('*').eq('user_id', user_id).eq('claimed', false)
+        .order('started_at', { ascending: false }).limit(1).maybeSingle();
+      if (!session) {
+        return new Response(JSON.stringify({ success: true, active: false, ready: false, amount: MINING_RATE, rate: MINING_RATE }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const ready = new Date(session.ends_at).getTime() <= Date.now();
+      return new Response(JSON.stringify({ success: true, active: true, ready, ends_at: session.ends_at, amount: Number(session.amount), rate: MINING_RATE }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    if (action === 'admin_update_short_link') {
-      await supabase.from('short_links').update(body.updates).eq('id', body.link_id);
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    if (action === 'start_mining') {
+      const { user_id } = body;
+      const { data: user } = await supabase.from('users').select('id, banned').eq('id', user_id).single();
+      if (!user || user.banned) return new Response(JSON.stringify({ success: false, message: 'User unavailable' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: open } = await supabase.from('mining_sessions').select('id, ends_at').eq('user_id', user_id).eq('claimed', false).maybeSingle();
+      if (open) return new Response(JSON.stringify({ success: false, message: 'Mining already running', ends_at: open.ends_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const endsAt = new Date(Date.now() + MINING_DURATION_MS).toISOString();
+      await supabase.from('mining_sessions').insert({ user_id, ends_at: endsAt, amount: MINING_RATE });
+      return new Response(JSON.stringify({ success: true, ends_at: endsAt, amount: MINING_RATE }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    if (action === 'admin_delete_short_link') {
-      await supabase.from('short_links').delete().eq('id', body.link_id);
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    if (action === 'claim_mining') {
+      const { user_id } = body;
+      const { data: session } = await supabase.from('mining_sessions')
+        .select('*').eq('user_id', user_id).eq('claimed', false)
+        .order('started_at', { ascending: false }).limit(1).maybeSingle();
+      if (!session) return new Response(JSON.stringify({ success: false, message: 'No mining session' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (new Date(session.ends_at).getTime() > Date.now()) {
+        return new Response(JSON.stringify({ success: false, message: 'Mining is not full yet', ends_at: session.ends_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const amount = Number(session.amount || MINING_RATE);
+      const { error: claimErr } = await supabase.from('mining_sessions')
+        .update({ claimed: true, claimed_at: new Date().toISOString() })
+        .eq('id', session.id).eq('claimed', false);
+      if (claimErr) throw claimErr;
+      const { data: u } = await supabase.from('users').select('balance').eq('id', user_id).single();
+      await supabase.from('users').update({ balance: Number(u?.balance || 0) + amount }).eq('id', user_id);
+      await addHistory(supabase, user_id, 'mining', amount, '⛏️ Mining Reward', `${amount} Bunny mined in 1 hour`);
+      return new Response(JSON.stringify({ success: true, amount }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    if (action === 'admin_list_short_links') {
-      const { data: links } = await supabase.from('short_links').select('*').order('sort_order').order('created_at', { ascending: false });
-      return new Response(JSON.stringify({ success: true, links: (links || []).map((l: any) => ({ ...l, reward_url: rewardUrlForShortLink(l.id, l.reward_token) })) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+
     if (action === 'get_history') {
       const { user_id } = body;
       const { data: items } = await supabase.from('reward_history').select('*').eq('user_id', user_id).order('created_at', { ascending: false }).limit(100);
       return new Response(JSON.stringify({ success: true, items: items || [] }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (action === 'get_short_links') {
-      const { user_id } = body;
-      const { data: links } = await supabase.from('short_links').select('id, title, short_url, reward_amount, daily_cooldown_hours, sort_order, created_at').eq('active', true).order('sort_order').order('created_at', { ascending: false });
-      const { data: claims } = await supabase.from('short_link_claims').select('short_link_id, claimed_at, next_available_at, status').eq('user_id', user_id).order('started_at', { ascending: false });
-      const last: Record<string, any> = {};
-      (claims || []).forEach((c: any) => { if (!last[c.short_link_id]) last[c.short_link_id] = c; });
-      const items = (links || []).map((l: any) => ({ ...l, claim: last[l.id] || null }));
-      return new Response(JSON.stringify({ success: true, links: items }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (action === 'start_short_link') {
-      const { user_id, short_link_id } = body;
-      const { data: link } = await supabase.from('short_links').select('*').eq('id', short_link_id).eq('active', true).single();
-      if (!link) throw new Error('Short link not found');
-      const now = new Date();
-      const { data: last } = await supabase.from('short_link_claims').select('*').eq('user_id', user_id).eq('short_link_id', short_link_id).order('started_at', { ascending: false }).limit(1).maybeSingle();
-      if (last?.next_available_at && new Date(last.next_available_at).getTime() > now.getTime()) {
-        return new Response(JSON.stringify({ success: false, message: 'Cooldown active', next_available_at: last.next_available_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      await supabase.from('short_link_claims').insert({ user_id, short_link_id, amount: link.reward_amount, reward_token: link.reward_token, status: 'started' });
-      return new Response(JSON.stringify({ success: true, short_url: link.short_url }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (action === 'claim_short_link') {
-      const { user_id, short_link_id, reward_token } = body;
-      const { data: link } = await supabase.from('short_links').select('*').eq('id', short_link_id).eq('reward_token', reward_token).eq('active', true).single();
-      if (!link) throw new Error('Invalid reward link');
-      const now = new Date();
-      const nextAt = new Date(now.getTime() + Number(link.daily_cooldown_hours || 24) * 3600 * 1000).toISOString();
-      // Check ANY existing claim (claimed status) for this user+link with cooldown still active
-      const { data: anyClaim } = await supabase
-        .from('short_link_claims')
-        .select('id, next_available_at, claimed_at, status')
-        .eq('user_id', user_id)
-        .eq('short_link_id', short_link_id)
-        .eq('status', 'claimed')
-        .order('claimed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (anyClaim?.next_available_at && new Date(anyClaim.next_available_at).getTime() > now.getTime()) {
-        return new Response(JSON.stringify({ success: false, message: 'Already claimed. Wait for cooldown.', next_available_at: anyClaim.next_available_at }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      const amount = Number(link.reward_amount || 0);
-      const { data: u } = await supabase.from('users').select('balance, banned').eq('id', user_id).single();
-      if (!u || u.banned) throw new Error('User unavailable');
-      await supabase.from('users').update({ balance: Number(u.balance || 0) + amount, updated_at: now.toISOString() }).eq('id', user_id);
-      await supabase.from('short_link_claims').insert({ user_id, short_link_id, amount, reward_token, status: 'claimed', claimed_at: now.toISOString(), next_available_at: nextAt });
-      await addHistory(supabase, user_id, 'short_link', amount, '🔗 Short Link Reward', link.title || 'Short link completed');
-      return new Response(JSON.stringify({ success: true, amount, next_available_at: nextAt }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (action === 'play_game') {
-      const { user_id, game, bet, choice } = body;
-      const betNum = Math.floor(Number(bet));
-      const allowedGames = ['coin', 'mines', 'crash'];
-      if (!user_id || !allowedGames.includes(game)) {
-        return new Response(JSON.stringify({ success: false, message: 'Invalid game' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      if (!Number.isFinite(betNum) || betNum < 10 || betNum > 10000) {
-        return new Response(JSON.stringify({ success: false, message: 'Bet must be 10 - 10000 🐰' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      const { data: u } = await supabase.from('users').select('id, balance, banned').eq('id', user_id).single();
-      if (!u || u.banned) {
-        return new Response(JSON.stringify({ success: false, message: 'User unavailable' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      if (Number(u.balance) < betNum) {
-        return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      // Server-side RNG — 25% house-favored win rate, fixed 1.8x payout for all games.
-      const MULTIPLIER = 1.8;
-      const buf = new Uint32Array(1); crypto.getRandomValues(buf);
-      const won = (buf[0] / 0xffffffff) < 0.25;
-      const payout = won ? Math.floor(betNum * MULTIPLIER) : 0;
-      const meta: any = { multiplier: MULTIPLIER };
-      if (game === 'coin') {
-        meta.choice = choice;
-        meta.reveal = won ? choice : (choice === 'heads' ? 'tails' : 'heads');
-      } else if (game === 'mines') {
-        const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
-        const safeTile = won ? Number(choice) : ((Number(choice) + 1 + (r1[0] % 3)) % 4);
-        meta.pick = Number(choice); meta.safe = safeTile;
-      } else if (game === 'crash') {
-        const r1 = new Uint32Array(1); crypto.getRandomValues(r1);
-        const crashPoint = won ? (1.8 + (r1[0] / 0xffffffff) * 5) : (0.3 + (r1[0] / 0xffffffff) * 1.4);
-        meta.crashPoint = Number(crashPoint.toFixed(2)); meta.cashOut = MULTIPLIER;
-      }
-      const newBalance = Number(u.balance) - betNum + payout;
-      await supabase.from('users').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('id', user_id);
-      await supabase.from('game_plays').insert({ user_id, game, bet: betNum, payout, won, meta });
-      await addHistory(supabase, user_id, 'game', payout - betNum, won ? '🎮 Game Win' : '🎮 Game Loss', `${game} ${won ? 'won' : 'lost'}`);
-      return new Response(JSON.stringify({ success: true, won, payout, new_balance: newBalance, meta }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

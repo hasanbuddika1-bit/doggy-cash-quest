@@ -30,22 +30,18 @@ async function addHistory(supabase: any, userId: string, type: string, amount: n
 }
 
 async function estimateEarned(supabase: any, userId: string) {
-  const [ads, clicks, codes, weekly, games, shorts, refs] = await Promise.all([
+  const [ads, clicks, codes, mining, refs] = await Promise.all([
     supabase.from('ad_watches').select('earned').eq('user_id', userId),
     supabase.from('clicks').select('earned').eq('user_id', userId),
     supabase.from('reward_claims').select('amount').eq('user_id', userId),
-    supabase.from('weekly_challenge_claims').select('amount').eq('user_id', userId),
-    supabase.from('game_plays').select('bet, payout').eq('user_id', userId),
-    supabase.from('short_link_claims').select('amount').eq('user_id', userId).eq('status', 'claimed'),
+    supabase.from('mining_sessions').select('amount').eq('user_id', userId).eq('claimed', true),
     supabase.from('referrals').select('reward_amount, commission_earned').eq('referrer_id', userId).eq('verified', true).eq('reward_claimed', true),
   ]);
   let earned = 0;
   (ads.data || []).forEach((r: any) => earned += Number(r.earned || 0));
   (clicks.data || []).forEach((r: any) => earned += Number(r.earned || 0));
   (codes.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-  (weekly.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-  (shorts.data || []).forEach((r: any) => earned += Number(r.amount || 0));
-  (games.data || []).forEach((r: any) => earned += Number(r.payout || 0) - Number(r.bet || 0));
+  (mining.data || []).forEach((r: any) => earned += Number(r.amount || 0));
   (refs.data || []).forEach((r: any) => earned += Number(r.reward_amount || 0) + Number(r.commission_earned || 0));
   return earned;
 }
@@ -60,8 +56,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { user_id, amount, wallet_address, method = 'usdt_bep20' } = await req.json();
-    const normalizedMethod = method === 'ton' ? 'ton' : 'usdt_bep20';
+    const { user_id, amount, wallet_address } = await req.json();
+    const normalizedMethod = 'usdt_bep20';
 
     const { data: user } = await supabase.from('users').select('*').eq('id', user_id).single();
     if (!user) throw new Error('User not found');
@@ -71,13 +67,12 @@ Deno.serve(async (req) => {
     const s: Record<string, string> = {};
     (settings || []).forEach((x: any) => { s[x.key] = x.value; });
 
-    const minAmount = Number(s.min_withdraw || 500);
+    const minAmount = Number(s.min_withdraw || 1000);
     const dailyAdsReq = Number(s.daily_ads_required || 40);
     const totalRefReq = Number(s.total_referrals_required || 2);
-    const rate = Number(s.doggy_to_usdt_rate || 0.0001);
+    const rate = Number(s.doggy_to_usdt_rate || 0.00001);
 
-    const isTon = normalizedMethod === 'ton';
-    if (isTon && s.ton_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'GRAM withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const isTon = false;
     if (!isTon && s.bep20_enabled === 'false') return new Response(JSON.stringify({ success: false, message: 'USDT (BEP20) withdrawals disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const feeFixed = isTon ? Number(s.ton_fee_fixed || 0.005) : Number(s.withdraw_fee_fixed || 0.01);
@@ -127,17 +122,9 @@ Deno.serve(async (req) => {
     const fee = feeFixed + (grossUsdt * feePercent / 100);
     const netUsdt = Math.max(0, grossUsdt - fee);
 
-    let tonAmount: number | null = null;
-    if (isTon) {
-      try {
-        const r = await fetch(`${supabaseUrl}/functions/v1/ton-price`, { headers: { 'Authorization': `Bearer ${supabaseKey}` } });
-        const j = await r.json();
-        const tonUsd = Number(j?.ton_usdt);
-        if (tonUsd > 0) tonAmount = Number((netUsdt / tonUsd).toFixed(6));
-      } catch {}
-    }
+    const tonAmount: number | null = null;
 
-    const methodLabel = isTon ? '🔵 GRAM (ex TON)' : '🟢 USDT (BEP20)';
+    const methodLabel = '🟢 USDT (BEP20)';
 
     await supabase.from('withdrawals').insert({
       user_id, amount, usdt_amount: grossUsdt, fee_usdt: fee, net_usdt: netUsdt,
@@ -145,10 +132,10 @@ Deno.serve(async (req) => {
     });
     await addHistory(supabase, user_id, 'withdrawal_pending', -Number(amount), '💸 Withdrawal Requested', `${methodLabel} pending approval`);
 
-    const update: any = isTon ? { ton_address: wallet_address } : { wallet_address };
+    const update: any = { wallet_address };
     await supabase.from('users').update(update).eq('id', user_id);
 
-    const amountLine = isTon && tonAmount ? `🪙 GRAM: <b>${tonAmount} GRAM</b> (~$${netUsdt.toFixed(4)})` : `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
+    const amountLine = `💵 Net: <b>$${netUsdt.toFixed(4)} USDT</b>`;
 
     await sendTelegram('sendMessage', {
       chat_id: ADMIN_CHAT_ID,
