@@ -462,39 +462,13 @@ function UserActivityView({ user, onBack, onRefresh }: { user: any; onBack: () =
         </div>
       )}
 
-      {weeklyClaims.length > 0 && (
+      {miningClaims.length > 0 && (
         <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">🏆 Weekly Challenges ({weeklyClaims.length})</p>
+          <p className="text-xs font-bold mb-1">⛏️ Mining Claims ({miningClaims.length})</p>
           <div className="max-h-40 overflow-y-auto">
-          {weeklyClaims.map(w => (
-            <p key={w.id} className="text-[10px] text-muted-foreground">
-              {w.challenge_key} — +{w.amount} 🐰 | week {new Date(w.week_start).toLocaleDateString()} | claimed {new Date(w.created_at).toLocaleDateString()}
-            </p>
-          ))}
-          </div>
-        </div>
-      )}
-
-      {gamePlays.length > 0 && (
-        <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">🎮 Game History ({gamePlays.length})</p>
-          <div className="max-h-40 overflow-y-auto">
-          {gamePlays.slice(0, 50).map(g => (
-            <p key={g.id} className="text-[10px] text-muted-foreground">
-              {g.game} — bet {g.bet} / payout {g.payout} / net {(Number(g.payout || 0) - Number(g.bet || 0)).toFixed(0)} 🐰 | {new Date(g.created_at).toLocaleString()}
-            </p>
-          ))}
-          </div>
-        </div>
-      )}
-
-      {shortClaims.length > 0 && (
-        <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs font-bold mb-1">🔗 Short Link Claims ({shortClaims.length})</p>
-          <div className="max-h-40 overflow-y-auto">
-          {shortClaims.slice(0, 50).map(c => (
-            <p key={c.id} className="text-[10px] text-muted-foreground">
-              {c.status} — +{c.amount || 0} 🐰 | {new Date(c.claimed_at || c.started_at || c.created_at).toLocaleString()}
+          {miningClaims.slice(0, 50).map(m => (
+            <p key={m.id} className="text-[10px] text-muted-foreground">
+              +{m.amount} 🐰 | {new Date(m.claimed_at || m.created_at).toLocaleString()}
             </p>
           ))}
           </div>
