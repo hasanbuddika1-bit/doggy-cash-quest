@@ -159,15 +159,25 @@ export async function showAdsgram(blockId: string, minSeconds: number): Promise<
     const ctrl = Adsgram.init({ blockId, debug: false });
     const start = Date.now();
     let shown = false;
-    try { await ctrl.show(); shown = true; } catch { /* user closed early / SDK rejected */ }
+    let noInventory = false;
+    try {
+      await ctrl.show();
+      shown = true;
+    } catch (e: any) {
+      const desc = String(e?.description || e?.message || "");
+      if (/no ?ad|not ?found|empty|no inventory|unavailable/i.test(desc)) noInventory = true;
+    }
     const secs = Math.round((Date.now() - start) / 1000);
-    if (!shown && secs < 2) throw new AdNotShownError("adsgram");
+    if (!shown && secs < 2) throw noInventory ? new AdsNotAvailableError() : new AdsNotAvailableError();
     if (secs < minSeconds) throw new AdClosedEarlyError(secs, minSeconds);
     return secs;
   });
 }
 export const showAdsgramBlock1 = () => showAdsgram(ADSGRAM_BLOCK_1, MIN_SECONDS.adsgram_block1);
 export const showAdsgramBlock2 = () => showAdsgram(ADSGRAM_BLOCK_2, MIN_SECONDS.adsgram_block2);
+/** Interstitial block — used for auto ads, mining, reward claims and withdraw ads (min 10s). */
+export const showAdsgramInt = (minSeconds = MIN_SECONDS.adsgram_int) => showAdsgram(ADSGRAM_INT_BLOCK, minSeconds);
+
 
 export async function showMonetagAd(): Promise<number> {
   return withSingleAd("monetag", async () => {
