@@ -123,7 +123,25 @@ function disableAdsgramTemporarily(): () => void {
   const w = window as any;
   const originalAdsgram = w.Adsgram;
   const originalSad = w.sad;
+  const originalAlert = window.alert;
+  const webApp = w.Telegram?.WebApp;
+  const originalShowAlert = webApp?.showAlert;
+  const originalShowPopup = webApp?.showPopup;
   try {
+    // Block every Adsgram popup while another network's ad is playing.
+    window.alert = (msg?: any) => { if (/adsgram|blockId/i.test(String(msg ?? ""))) return; originalAlert.call(window, msg); };
+    if (webApp?.showAlert) {
+      webApp.showAlert = (msg: string, cb?: () => void) => {
+        if (/adsgram|blockId/i.test(String(msg ?? ""))) { cb?.(); return; }
+        return originalShowAlert.call(webApp, msg, cb);
+      };
+    }
+    if (webApp?.showPopup) {
+      webApp.showPopup = (params: any, cb?: (id: string) => void) => {
+        if (/adsgram|blockId/i.test(`${params?.title ?? ""} ${params?.message ?? ""}`)) { cb?.("close"); return; }
+        return originalShowPopup.call(webApp, params, cb);
+      };
+    }
     w.Adsgram = {
       init: () => ({ show: async () => { throw new Error("Adsgram disabled during other network ad"); } }),
     };
@@ -132,6 +150,9 @@ function disableAdsgramTemporarily(): () => void {
   return () => {
     try { w.Adsgram = originalAdsgram; } catch { /* ignore */ }
     try { w.sad = originalSad; } catch { /* ignore */ }
+    try { window.alert = originalAlert; } catch { /* ignore */ }
+    try { if (webApp && originalShowAlert) webApp.showAlert = originalShowAlert; } catch { /* ignore */ }
+    try { if (webApp && originalShowPopup) webApp.showPopup = originalShowPopup; } catch { /* ignore */ }
   };
 }
 
@@ -159,16 +180,9 @@ export async function showAdsgram(blockId: string, minSeconds: number): Promise<
     const ctrl = Adsgram.init({ blockId, debug: false });
     const start = Date.now();
     let shown = false;
-    let noInventory = false;
-    try {
-      await ctrl.show();
-      shown = true;
-    } catch (e: any) {
-      const desc = String(e?.description || e?.message || "");
-      if (/no ?ad|not ?found|empty|no inventory|unavailable/i.test(desc)) noInventory = true;
-    }
+    try { await ctrl.show(); shown = true; } catch { /* closed early / no inventory */ }
     const secs = Math.round((Date.now() - start) / 1000);
-    if (!shown && secs < 2) throw noInventory ? new AdsNotAvailableError() : new AdsNotAvailableError();
+    if (!shown && secs < 2) throw new AdsNotAvailableError();
     if (secs < minSeconds) throw new AdClosedEarlyError(secs, minSeconds);
     return secs;
   });
@@ -291,14 +305,8 @@ export async function showGigapubAd(): Promise<number> {
 // Reward-claim ads only use ONE network per claim: Adsgram OR GigaPub.
 // We alternate deterministically and NEVER cross-fallback (that caused two SDKs to fire).
 export async function showRandomAd(): Promise<void> {
-  const last = localStorage.getItem("bunny_last_claim_ad_network");
-  const next = last === "adsgram" ? "gigapub" : "adsgram";
-  localStorage.setItem("bunny_last_claim_ad_network", next);
-  if (next === "gigapub") {
-    await showGigapubAd();
-  } else {
-    await showAdsgramBlock1();
-  }
+  // Every reward claim plays ONE Adsgram interstitial ad (min 10s).
+  await showAdsgramInt(MIN_SECONDS.adsgram_int);
 }
 
 export async function playAutoAd(): Promise<void> {
