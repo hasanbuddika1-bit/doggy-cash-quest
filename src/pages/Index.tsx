@@ -11,7 +11,7 @@ import { WatchAdsTab } from "@/components/tabs/WatchAdsTab";
 import { ProfileTab } from "@/components/tabs/ProfileTab";
 import { ensureTelegramWebApp, getCurrentUser, getStartParam } from "@/lib/telegram";
 import { getOrCreateUser, detectCountry, supabase } from "@/lib/api";
-import { showAdsgramBlock1 } from "@/lib/ads";
+import { showAdsgramInt } from "@/lib/ads";
 
 type AppState = "loading" | "main" | "banned" | "maintenance";
 const ADMIN_TELEGRAM_ID = 5419054691;
@@ -20,6 +20,7 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>("loading");
   const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState("home");
+  const [profileSubTab, setProfileSubTab] = useState("Profile");
   const [userId, setUserId] = useState("");
   const [user, setUser] = useState<any>(null);
   const [_userCountry, setUserCountry] = useState<string | null>(null);
@@ -85,7 +86,7 @@ const Index = () => {
   }, [userId]);
 
   const handleTabChange = useCallback((tab: string) => {
-    if (tab === "home") showAdsgramBlock1().catch(() => { /* ignore: another ad is already playing */ });
+    if (tab === "home") showAdsgramInt(10).catch(() => { /* ignore: another ad is already playing */ });
     setActiveTab(tab);
     refreshUser();
   }, [refreshUser]);
@@ -123,11 +124,14 @@ const Index = () => {
       <AnimatedBackground />
       <div className="relative z-10">
         <AnimatePresence mode="wait">
-          {activeTab === "home"     && <HomeTab key="home" user={user} userId={userId} onNavigate={(tab) => setActiveTab(tab)} onBalanceChange={refreshUser} />}
+          {activeTab === "home"     && <HomeTab key="home" user={user} userId={userId} onNavigate={(tab) => {
+            if (tab === "withdraw") { setProfileSubTab("Withdraw"); setActiveTab("profile"); }
+            else setActiveTab(tab);
+          }} onBalanceChange={refreshUser} />}
           {activeTab === "tasks"    && <TasksTab key="tasks" userId={userId} telegramId={user?.telegram_id} />}
           {activeTab === "watchads" && <WatchAdsTab key="watchads" userId={userId} />}
           {activeTab === "earn"     && <EarnTab key="earn" userId={userId} telegramId={user?.telegram_id} />}
-          {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} />}
+          {activeTab === "profile"  && <ProfileTab key="profile" user={user} userId={userId} initialSubTab={profileSubTab} />}
         </AnimatePresence>
       </div>
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />

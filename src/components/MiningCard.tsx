@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Loader2, Pickaxe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getMining, startMining, claimMining } from "@/lib/api";
+import { showAdsgramInt, AdsNotAvailableError, AdClosedEarlyError } from "@/lib/ads";
+import { AdsUnavailablePopup } from "@/components/AdsUnavailablePopup";
 import { toast } from "sonner";
 
 interface Props {
@@ -30,6 +32,7 @@ export function MiningCard({ userId, onClaimed }: Props) {
   const [state, setState] = useState<MiningState>({ active: false, ready: false, amount: 0, rate: 100 });
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [noAds, setNoAds] = useState(false);
   const busy = useRef(false);
 
   const load = useCallback(async () => {
@@ -63,10 +66,16 @@ export function MiningCard({ userId, onClaimed }: Props) {
     if (busy.current) return;
     busy.current = true; setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to start mining...");
+      await showAdsgramInt(10);
       const r = await startMining(userId);
       if (r.success) { toast.success("⛏️ Mining started! Come back in 1 hour."); await load(); }
       else toast.error(r.message || "Could not start mining");
-    } catch { toast.error("Could not start mining"); }
+    } catch (e) {
+      if (e instanceof AdsNotAvailableError) setNoAds(true);
+      else if (e instanceof AdClosedEarlyError) toast.error("Watch the full ad (min 10s) to start mining");
+      else toast.error("Could not start mining");
+    }
     setLoading(false); busy.current = false;
   }
 
@@ -74,10 +83,16 @@ export function MiningCard({ userId, onClaimed }: Props) {
     if (busy.current) return;
     busy.current = true; setLoading(true);
     try {
+      toast.info("📺 Watch a quick ad to claim...");
+      await showAdsgramInt(10);
       const r = await claimMining(userId);
       if (r.success) { onClaimed?.(Number(r.amount || 0)); await load(); }
       else toast.error(r.message || "Not ready yet");
-    } catch { toast.error("Claim failed"); }
+    } catch (e) {
+      if (e instanceof AdsNotAvailableError) setNoAds(true);
+      else if (e instanceof AdClosedEarlyError) toast.error("Watch the full ad (min 10s) to claim");
+      else toast.error("Claim failed");
+    }
     setLoading(false); busy.current = false;
   }
 
@@ -87,6 +102,7 @@ export function MiningCard({ userId, onClaimed }: Props) {
       className="card-3d p-5 relative overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
+      <AdsUnavailablePopup show={noAds} onClose={() => setNoAds(false)} />
       <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-bunny-gold/10 blur-2xl" />
 
       <div className="flex items-center justify-between mb-4 relative">
