@@ -9,7 +9,7 @@ import { GuideButton } from "@/components/GuideButton";
 import { WithdrawTab } from "@/components/tabs/WithdrawTab";
 import { HistoryTab } from "@/components/tabs/HistoryTab";
 
-interface ProfileTabProps { user: any; userId: string; }
+interface ProfileTabProps { user: any; userId: string; initialSubTab?: string; }
 
 const SUB_TABS = [
   { key: "Profile",  icon: "👤" },
@@ -17,8 +17,8 @@ const SUB_TABS = [
   { key: "History",  icon: "📜" },
 ];
 
-export function ProfileTab({ user, userId }: ProfileTabProps) {
-  const [subTab, setSubTab] = useState("Profile");
+export function ProfileTab({ user, userId, initialSubTab }: ProfileTabProps) {
+  const [subTab, setSubTab] = useState(initialSubTab || "Profile");
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">

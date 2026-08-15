@@ -3,21 +3,24 @@
 
 const MIN_SECONDS: Record<string, number> = {
   adsgram_block1: 30,
-  adsgram_block2: 30,
+  adsgram_block2: 33,
+  adsgram_int: 10,
   monetag: 5,
   monetix: 4,
   adexium: 8,
   gigapub: 15,
 };
 
-// Only block 35464 is used now (per admin request — old int-35465/34573 removed).
-export const ADSGRAM_BLOCK_1 = "35464";     // 33s
-export const ADSGRAM_BLOCK_2 = "35464";     // 33s
+// Reward block + interstitial block (both are used across the app).
+export const ADSGRAM_BLOCK_1 = "35464";       // reward block
+export const ADSGRAM_BLOCK_2 = "35464";       // reward block (33s slots)
+export const ADSGRAM_INT_BLOCK = "int-35465"; // interstitial block (auto / mining / withdraw)
 export const MONETAG_ZONE = "11090694";
 export const MONETIX_ID = "MX-38D29668";
 export const ADEXIUM_WID = "de7a9891-5239-4120-80ee-4c3050e7b0ae";
 
-const OLD_ADSGRAM_BLOCK_ERROR = /AdsgramError|blockId\s*=\s*34573|blockId\s*=\s*int-35465|doggy-cash-quest\.vercel\.app/i;
+const OLD_ADSGRAM_BLOCK_ERROR = /blockId\s*=\s*34573|doggy-cash-quest\.vercel\.app/i;
+
 
 export class AdClosedEarlyError extends Error {
   constructor(public seconds: number, public minRequired: number) {
@@ -29,10 +32,17 @@ export class AdNotShownError extends Error {
     super(`${network}: ${msg}`);
   }
 }
+/** Thrown when Adsgram has no inventory for this region — user should try a VPN. */
+export class AdsNotAvailableError extends Error {
+  constructor(public network = "adsgram") {
+    super("No ads available in your region right now. Please turn on a VPN and try again.");
+  }
+}
 
 let adInProgress = false;
 async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T> {
   if (adInProgress) throw new AdNotShownError(network, "Another ad is already playing");
+  installOldAdsgramBlockGuard();
   adInProgress = true;
   try {
     return await fn();
@@ -40,6 +50,7 @@ async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T
     adInProgress = false;
   }
 }
+
 
 // Some third-party SDKs used before can still try to show the old Adsgram block
 // from cache/auto-init. Suppress only that stale native alert; valid app alerts stay untouched.
@@ -112,7 +123,25 @@ function disableAdsgramTemporarily(): () => void {
   const w = window as any;
   const originalAdsgram = w.Adsgram;
   const originalSad = w.sad;
+  const originalAlert = window.alert;
+  const webApp = w.Telegram?.WebApp;
+  const originalShowAlert = webApp?.showAlert;
+  const originalShowPopup = webApp?.showPopup;
   try {
+    // Block every Adsgram popup while another network's ad is playing.
+    window.alert = (msg?: any) => { if (/adsgram|blockId/i.test(String(msg ?? ""))) return; originalAlert.call(window, msg); };
+    if (webApp?.showAlert) {
+      webApp.showAlert = (msg: string, cb?: () => void) => {
+        if (/adsgram|blockId/i.test(String(msg ?? ""))) { cb?.(); return; }
+        return originalShowAlert.call(webApp, msg, cb);
+      };
+    }
+    if (webApp?.showPopup) {
+      webApp.showPopup = (params: any, cb?: (id: string) => void) => {
+        if (/adsgram|blockId/i.test(`${params?.title ?? ""} ${params?.message ?? ""}`)) { cb?.("close"); return; }
+        return originalShowPopup.call(webApp, params, cb);
+      };
+    }
     w.Adsgram = {
       init: () => ({ show: async () => { throw new Error("Adsgram disabled during other network ad"); } }),
     };
@@ -121,6 +150,9 @@ function disableAdsgramTemporarily(): () => void {
   return () => {
     try { w.Adsgram = originalAdsgram; } catch { /* ignore */ }
     try { w.sad = originalSad; } catch { /* ignore */ }
+    try { window.alert = originalAlert; } catch { /* ignore */ }
+    try { if (webApp && originalShowAlert) webApp.showAlert = originalShowAlert; } catch { /* ignore */ }
+    try { if (webApp && originalShowPopup) webApp.showPopup = originalShowPopup; } catch { /* ignore */ }
   };
 }
 
@@ -148,15 +180,18 @@ export async function showAdsgram(blockId: string, minSeconds: number): Promise<
     const ctrl = Adsgram.init({ blockId, debug: false });
     const start = Date.now();
     let shown = false;
-    try { await ctrl.show(); shown = true; } catch { /* user closed early / SDK rejected */ }
+    try { await ctrl.show(); shown = true; } catch { /* closed early / no inventory */ }
     const secs = Math.round((Date.now() - start) / 1000);
-    if (!shown && secs < 2) throw new AdNotShownError("adsgram");
+    if (!shown && secs < 2) throw new AdsNotAvailableError();
     if (secs < minSeconds) throw new AdClosedEarlyError(secs, minSeconds);
     return secs;
   });
 }
 export const showAdsgramBlock1 = () => showAdsgram(ADSGRAM_BLOCK_1, MIN_SECONDS.adsgram_block1);
 export const showAdsgramBlock2 = () => showAdsgram(ADSGRAM_BLOCK_2, MIN_SECONDS.adsgram_block2);
+/** Interstitial block — used for auto ads, mining, reward claims and withdraw ads (min 10s). */
+export const showAdsgramInt = (minSeconds = MIN_SECONDS.adsgram_int) => showAdsgram(ADSGRAM_INT_BLOCK, minSeconds);
+
 
 export async function showMonetagAd(): Promise<number> {
   return withSingleAd("monetag", async () => {
@@ -270,14 +305,8 @@ export async function showGigapubAd(): Promise<number> {
 // Reward-claim ads only use ONE network per claim: Adsgram OR GigaPub.
 // We alternate deterministically and NEVER cross-fallback (that caused two SDKs to fire).
 export async function showRandomAd(): Promise<void> {
-  const last = localStorage.getItem("bunny_last_claim_ad_network");
-  const next = last === "adsgram" ? "gigapub" : "adsgram";
-  localStorage.setItem("bunny_last_claim_ad_network", next);
-  if (next === "gigapub") {
-    await showGigapubAd();
-  } else {
-    await showAdsgramBlock1();
-  }
+  // Every reward claim plays ONE Adsgram interstitial ad (min 10s).
+  await showAdsgramInt(MIN_SECONDS.adsgram_int);
 }
 
 export async function playAutoAd(): Promise<void> {

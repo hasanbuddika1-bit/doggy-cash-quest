@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Tv, ExternalLink, Gift, Loader2 } from "lucide-react";
+import { Tv, ExternalLink, Gift, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { claimRewardCode } from "@/lib/api";
-import { showRandomAd, showAdsgramBlock1 } from "@/lib/ads";
+import { showRandomAd, showAdsgramInt } from "@/lib/ads";
 import { getTelegramWebApp } from "@/lib/telegram";
 import bunnyLogo from "@/assets/bunny-v2-logo.png";
 import { GuideButton } from "@/components/GuideButton";
@@ -79,7 +79,7 @@ export function HomeTab({ user, userId, onNavigate, onBalanceChange }: HomeTabPr
 
   // Play an Adsgram ad on taps inside the Home area.
   function handleHomeTouch() {
-    showAdsgramBlock1().catch(() => { /* ignore: another ad playing / SDK not ready */ });
+    showAdsgramInt(10).catch(() => { /* ignore: another ad playing / SDK not ready */ });
   }
 
   return (
@@ -132,6 +132,13 @@ export function HomeTab({ user, userId, onNavigate, onBalanceChange }: HomeTabPr
           {balance.toFixed(0)} 🐰
         </motion.p>
         <p className="text-sm text-muted-foreground mt-1">≈ ${usdtValue} USDT</p>
+
+        <Button
+          onClick={(e) => { e.stopPropagation(); onNavigate?.("withdraw"); }}
+          className="mt-3 h-11 w-full btn-3d btn-3d-pink border-0 relative"
+        >
+          <Wallet className="w-4 h-4 mr-2" /> 💸 Withdraw Now
+        </Button>
       </motion.div>
 
       {/* ⛏️ Mining */}
@@ -191,7 +198,7 @@ export function HomeTab({ user, userId, onNavigate, onBalanceChange }: HomeTabPr
         <p className="text-xs font-bold text-gradient-bunny mb-2">🌸 Join the Hub</p>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Community", url: "https://t.me/bunnyearnhub", emoji: "📢" },
+            { label: "Community", url: "https://t.me/bunnyearnhubV2_community", emoji: "📢" },
             { label: "Payments",  url: "https://t.me/bunnyearnhubpay", emoji: "💳" },
           ].map((c) => (
             <button key={c.url} onClick={(e) => {
