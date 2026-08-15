@@ -32,10 +32,17 @@ export class AdNotShownError extends Error {
     super(`${network}: ${msg}`);
   }
 }
+/** Thrown when Adsgram has no inventory for this region — user should try a VPN. */
+export class AdsNotAvailableError extends Error {
+  constructor(public network = "adsgram") {
+    super("No ads available in your region right now. Please turn on a VPN and try again.");
+  }
+}
 
 let adInProgress = false;
 async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T> {
   if (adInProgress) throw new AdNotShownError(network, "Another ad is already playing");
+  installOldAdsgramBlockGuard();
   adInProgress = true;
   try {
     return await fn();
@@ -43,6 +50,7 @@ async function withSingleAd<T>(network: string, fn: () => Promise<T>): Promise<T
     adInProgress = false;
   }
 }
+
 
 // Some third-party SDKs used before can still try to show the old Adsgram block
 // from cache/auto-init. Suppress only that stale native alert; valid app alerts stay untouched.
