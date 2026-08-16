@@ -11,5 +11,5 @@ Admin chat ID: 5419054691. 100 Doggy = 0.01 USDT.
 - [Channels](mem://features/channels) — 5 required channels, Panda Technic Sri Lanka only
 - [Earn mechanics](mem://features/earn) — Clicks (5 doggy, 2/hr), tasks (admin_approve + one_click), referrals (100+5%), reward codes
 - [Withdraw rules](mem://features/withdraw) — Min 500, need 10 ads, 3 clicks, 2 referrals, 2 pre-withdraw ads, fee $0.01+2%, max 0.1 USDT
-- [Adsgram](mem://features/adsgram) — Use only block 35464; never re-add old 34573/int-35465 auto-init blocks; Home taps open Adsgram
+- [Adsgram](mem://features/adsgram) — Reward block 35464 + interstitial block int-35465 (auto ads, mining start/claim, 17s slots, withdraw 5 ads, reward claims; min 10s). Community: t.me/bunnyearnhubV2_community
 - [Fraud prevention](mem://features/fraud) — Same IP auto-ban, VPN warning, referral bonus blocked for same IP
