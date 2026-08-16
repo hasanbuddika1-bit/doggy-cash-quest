@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet } from "@/lib/api";
-import { showRandomAd } from "@/lib/ads";
+import { showAdsgramInt, AdsNotAvailableError, AdClosedEarlyError } from "@/lib/ads";
+import { AdsUnavailablePopup } from "@/components/AdsUnavailablePopup";
 import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import { GuideButton } from "@/components/GuideButton";
@@ -20,6 +21,10 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [hasPending, setHasPending] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [stats, setStats] = useState({ dailyAds: 0, totalRefs: 0, mainDone: 0, mainTotal: 0, partnerDone: 0, partnerTotal: 0 });
+  const [step, setStep] = useState<"requirements" | "ads" | "form">("requirements");
+  const [adsDone, setAdsDone] = useState(0);
+  const [watchingAd, setWatchingAd] = useState(false);
+  const [noAds, setNoAds] = useState(false);
 
   const balance = Number(user?.balance || 0);
   const rate = Number(settings.doggy_to_usdt_rate || 0.00001); // 1000 🐰 = $0.01
@@ -96,12 +101,6 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
     setLoading(true);
     try {
-      try {
-        toast.info("📺 Quick ad before submitting...");
-        await showRandomAd();
-      } catch (adErr) {
-        console.warn("Withdraw ad skipped:", adErr);
-      }
       const result = await submitWithdrawal(userId, Number(amount), address.trim());
       if (result.success) { toast.success("📤 Withdrawal submitted!"); setAmount(""); loadHistory(); loadStats(); }
       else toast.error(result.message || "Withdrawal failed");
