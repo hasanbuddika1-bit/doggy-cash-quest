@@ -1,29 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Copy, Loader2, MousePointerClick } from "lucide-react";
+import { motion } from "framer-motion";
+import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { processClick } from "@/lib/api";
-import { getTelegramWebApp } from "@/lib/telegram";
 import { toast } from "sonner";
-import { RewardPopup } from "@/components/RewardPopup";
 import { GuideButton } from "@/components/GuideButton";
 
 interface EarnTabProps { userId: string; telegramId: number; }
 
-const SUB_TABS = [
-  { key: "Refer",  icon: "👥", color: "from-bunny-pink to-bunny-lavender" },
-  { key: "Clicks", icon: "👆", color: "from-bunny-green to-emerald-600" },
-];
-
-const CLICK_LINKS = [
-  "https://omg10.com/4/10176898",
-  "https://omg10.com/4/10339385",
-];
 
 export function EarnTab({ userId, telegramId }: EarnTabProps) {
-  const [subTab, setSubTab] = useState("Refer");
 
   return (
     <div className="px-4 pt-4 pb-24">
@@ -37,118 +24,12 @@ export function EarnTab({ userId, telegramId }: EarnTabProps) {
         <GuideButton title="Earn Guide" steps={[
           "👥 Refer: Join reward 150 🐰, Day 1 ten ads +500 🐰, Day 2 ten ads +700 🐰.",
           "⏳ Day 1 + Day 2 must be finished within 48 hours or the referral expires.",
-          "👆 Clicks: View a sponsor link 10s → earn 5 🐰. Max 2/hour.",
+          "👆 Visit Site rewards moved to the Ads tab.",
           "🎁 Reward Codes are now on the Home tab.",
         ]} />
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-hide">
-        {SUB_TABS.map((tab) => (
-          <motion.button key={tab.key} whileTap={{ scale: 0.95 }} onClick={() => setSubTab(tab.key)}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              subTab === tab.key
-                ? `bg-gradient-to-r ${tab.color} text-primary-foreground shadow-lg`
-                : 'bg-card text-muted-foreground border border-bunny-pink/15'
-            }`}
-          >
-            <span>{tab.icon}</span> {tab.key}
-          </motion.button>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div key={subTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-          {subTab === "Clicks"     && <ClicksSection userId={userId} />}
-          {subTab === "Refer"      && <ReferSection userId={userId} telegramId={telegramId} />}
-        </motion.div>
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function ClicksSection({ userId }: { userId: string }) {
-  const [loading, setLoading] = useState(false);
-  const [timer, setTimer] = useState(0);
-  const [history, setHistory] = useState<any[]>([]);
-  const [canClick, setCanClick] = useState(true);
-  const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
-
-  const load = useCallback(async () => {
-    const { data } = await supabase.from("clicks").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
-    setHistory(data || []);
-    if (data && data.length > 0) {
-      const last = new Date(data[0].created_at).getTime();
-      const diff = 60 - Math.floor((Date.now() - last) / 1000);
-      if (diff > 0) { setTimer(diff); setCanClick(false); }
-      const hourAgo = Date.now() - 3600000;
-      if (data.filter(c => new Date(c.created_at).getTime() > hourAgo).length >= 2) setCanClick(false);
-    }
-  }, [userId]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (timer > 0) {
-      const i = setInterval(() => setTimer(t => t - 1), 1000);
-      return () => clearInterval(i);
-    } else setCanClick(true);
-  }, [timer]);
-
-  async function handleClick() {
-    setLoading(true);
-    const link = CLICK_LINKS[Math.floor(Math.random() * CLICK_LINKS.length)];
-    const wa = getTelegramWebApp();
-    if (wa) wa.openLink(link); else window.open(link, "_blank");
-    setTimer(10);
-    setTimeout(async () => {
-      try {
-        const r = await processClick(userId);
-        if (r.success) { setReward({ show: true, amount: r.earned }); setTimer(60); setCanClick(false); load(); }
-        else toast.error(r.message || "Click failed");
-      } catch { toast.error("Click failed"); }
-      setLoading(false);
-    }, 10000);
-  }
-
-  return (
-    <div className="space-y-4">
-      <RewardPopup show={reward.show} amount={reward.amount} onClose={() => setReward({ show: false, amount: 0 })} />
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="bg-gradient-to-br from-bunny-green/25 via-card to-emerald-500/10 rounded-2xl p-5 border border-bunny-green/30 text-center"
-      >
-        <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-4xl inline-block">👆</motion.span>
-        <p className="text-xs text-muted-foreground mb-1 mt-2">Per click</p>
-        <p className="text-3xl font-display font-bold text-gradient-bunny">5 🐰</p>
-        <p className="text-xs text-muted-foreground mt-2">Max 2 clicks/hour • View 10s</p>
-      </motion.div>
-
-      {timer > 0 ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="bg-gradient-to-br from-bunny-pink/10 to-card rounded-xl p-5 border border-bunny-pink/20 text-center"
-        >
-          <Clock className="w-8 h-8 text-bunny-pink-light mx-auto mb-2" />
-          <p className="text-3xl font-display font-bold text-gradient-bunny">{timer}s</p>
-          <p className="text-xs text-muted-foreground mt-1">{loading ? "⏳ Viewing..." : "Wait before next click"}</p>
-        </motion.div>
-      ) : (
-        <Button onClick={handleClick} disabled={!canClick || loading}
-          className="w-full h-14 bg-gradient-green text-white font-bold text-lg rounded-2xl shadow-lg border-0"
-        >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <MousePointerClick className="w-5 h-5 mr-2" />}
-          Click to Earn
-        </Button>
-      )}
-
-      {history.length > 0 && (
-        <div className="bg-card rounded-xl p-3 border border-bunny-pink/15">
-          <p className="text-xs text-muted-foreground mb-2 font-bold">📊 Recent Clicks</p>
-          {history.slice(0, 5).map((c) => (
-            <div key={c.id} className="flex justify-between py-1.5 text-xs border-b border-border/40 last:border-0">
-              <span className="text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
-              <span className="text-bunny-green font-bold">+{c.earned} 🐰</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <ReferSection userId={userId} telegramId={telegramId} />
     </div>
   );
 }

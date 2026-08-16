@@ -6,7 +6,7 @@ const MAX_RUNTIME_MS = 55_000;
 const MIN_REMAINING_MS = 5_000;
 const MINI_APP_URL = 'https://t.me/Bunnyearnbot/bunnytoken';
 const MINI_APP_WEB = 'https://doggy-cash-quest.lovable.app';
-const COMMUNITY_URL = 'https://t.me/bunnyearnhub';
+const COMMUNITY_URL = 'https://t.me/bunnyearnhubV2_community';
 const BUNNY_BOT_TOKEN = Deno.env.get('BUNNY_BOT_TOKEN');
 
 async function tg(method: string, body: any, lovableKey: string, tgKey: string) {
@@ -28,7 +28,7 @@ async function tg(method: string, body: any, lovableKey: string, tgKey: string) 
   return json;
 }
 
-const WELCOME_PHOTO = 'https://doggy-cash-quest.lovable.app/bunny-welcome.jpg';
+const WELCOME_PHOTO = 'https://doggy-cash-quest.lovable.app/__l5e/assets-v1/50b6a8b0-526d-4ee4-b69c-5d00aa0c6f30/bunny-welcome-v2.png';
 
 function welcomeKeyboard() {
   return {

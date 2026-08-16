@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { submitWithdrawal, updateWallet } from "@/lib/api";
-import { showRandomAd } from "@/lib/ads";
+import { showAdsgramInt, AdsNotAvailableError, AdClosedEarlyError } from "@/lib/ads";
+import { AdsUnavailablePopup } from "@/components/AdsUnavailablePopup";
 import { toast } from "sonner";
 import usdtLogo from "@/assets/usdt-logo.png";
 import { GuideButton } from "@/components/GuideButton";
@@ -20,6 +21,10 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
   const [hasPending, setHasPending] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [stats, setStats] = useState({ dailyAds: 0, totalRefs: 0, mainDone: 0, mainTotal: 0, partnerDone: 0, partnerTotal: 0 });
+  const [step, setStep] = useState<"requirements" | "ads" | "form">("requirements");
+  const [adsDone, setAdsDone] = useState(0);
+  const [watchingAd, setWatchingAd] = useState(false);
+  const [noAds, setNoAds] = useState(false);
 
   const balance = Number(user?.balance || 0);
   const rate = Number(settings.doggy_to_usdt_rate || 0.00001); // 1000 🐰 = $0.01
@@ -96,12 +101,6 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
 
     setLoading(true);
     try {
-      try {
-        toast.info("📺 Quick ad before submitting...");
-        await showRandomAd();
-      } catch (adErr) {
-        console.warn("Withdraw ad skipped:", adErr);
-      }
       const result = await submitWithdrawal(userId, Number(amount), address.trim());
       if (result.success) { toast.success("📤 Withdrawal submitted!"); setAmount(""); loadHistory(); loadStats(); }
       else toast.error(result.message || "Withdrawal failed");
@@ -119,8 +118,99 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
     { label: "No Pending", required: "✓", met: !hasPending },
   ];
 
+  const gateReqs = [
+    { label: "Daily Ads", required: `${stats.dailyAds}/${dailyAdsReq}`, met: stats.dailyAds >= dailyAdsReq },
+    { label: "Active Refs", required: `${stats.totalRefs}/${totalRefReq}`, met: stats.totalRefs >= totalRefReq },
+    { label: "Main Tasks", required: `${stats.mainDone}/${stats.mainTotal}`, met: stats.mainDone >= stats.mainTotal },
+    { label: "Partner Tasks", required: `${stats.partnerDone}/${stats.partnerTotal}`, met: stats.partnerDone >= stats.partnerTotal },
+    { label: "No Pending", required: hasPending ? "Pending request" : "✓", met: !hasPending },
+  ];
+  const gateMet = !!user?.withdraw_unlocked || gateReqs.every(r => r.met);
+  const REQUIRED_ADS = 5;
+
+  async function watchGateAd() {
+    setWatchingAd(true);
+    try {
+      await showAdsgramInt(10);
+      const next = adsDone + 1;
+      setAdsDone(next);
+      if (next >= REQUIRED_ADS) { toast.success("✅ All ads watched — withdraw unlocked!"); setStep("form"); }
+      else toast.success(`👍 Ad ${next}/${REQUIRED_ADS} done`);
+    } catch (e) {
+      if (e instanceof AdsNotAvailableError) setNoAds(true);
+      else if (e instanceof AdClosedEarlyError) toast.error("❌ Watch the full ad (min 10 seconds) — this one didn't count.");
+      else toast.error("Ad failed. Try again.");
+    }
+    setWatchingAd(false);
+  }
+
+  if (step !== "form") {
+    return (
+      <div className="space-y-4">
+        <AdsUnavailablePopup show={noAds} onClose={() => setNoAds(false)} />
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="card-3d px-4 py-3">
+          <p className="font-display font-bold text-3d-gold text-sm">💸 Withdraw Bunny</p>
+          <p className="text-[11px] text-muted-foreground">USDT • BEP20 network only</p>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="card-3d p-5 text-center">
+          <p className="text-xs text-muted-foreground">Available Balance</p>
+          <p className="text-3xl font-display font-bold text-3d-gold">{balance.toFixed(0)} 🐰</p>
+          <p className="text-sm text-muted-foreground">≈ ${(balance * rate).toFixed(4)} USDT</p>
+        </motion.div>
+
+        {step === "requirements" ? (
+          <>
+            <div className="card-3d p-4">
+              <p className="text-xs font-bold mb-3 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 text-bunny-pink-light" /> Step 1 — Withdraw Requirements
+              </p>
+              <div className="space-y-2">
+                {gateReqs.map((req) => (
+                  <div key={req.label} className="flex justify-between text-xs items-center">
+                    <span className="text-muted-foreground">{req.label}</span>
+                    <span className={`font-bold ${req.met ? "text-bunny-green" : "text-destructive"}`}>
+                      {req.required} {req.met ? "✅" : "❌"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {user?.withdraw_unlocked && (
+                <p className="text-[11px] text-bunny-green font-bold mt-3">🔓 Admin unlocked your withdrawals.</p>
+              )}
+            </div>
+            <Button onClick={() => setStep("ads")} disabled={!gateMet} className="w-full h-14 btn-3d border-0 text-lg">
+              {gateMet ? "✅ Continue" : "🔒 Complete requirements first"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="card-3d p-5 text-center">
+              <p className="text-xs font-bold mb-2">📺 Step 2 — Watch {REQUIRED_ADS} Ads</p>
+              <p className="text-4xl font-display font-bold text-3d-gold mb-1">{adsDone}/{REQUIRED_ADS}</p>
+              <p className="text-[11px] text-muted-foreground mb-4">Each ad must be watched at least 10 seconds.</p>
+              <div className="flex justify-center gap-2 mb-4">
+                {Array.from({ length: REQUIRED_ADS }).map((_, i) => (
+                  <span key={i} className={`w-3 h-3 rounded-full ${i < adsDone ? "bg-bunny-green" : "bg-muted"}`} />
+                ))}
+              </div>
+              <Button onClick={watchGateAd} disabled={watchingAd} className="w-full h-12 btn-3d btn-3d-pink border-0">
+                {watchingAd ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "▶️ "}
+                Watch Ad {adsDone + 1}
+              </Button>
+            </div>
+            <Button variant="outline" className="w-full h-10 border-bunny-lavender/40" onClick={() => setStep("requirements")}>
+              ← Back
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <AdsUnavailablePopup show={noAds} onClose={() => setNoAds(false)} />
       <div className="flex items-center justify-between">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
           className="card-3d px-4 py-3 flex-1 mr-2"
@@ -132,7 +222,7 @@ export function WithdrawTab({ userId, user }: WithdrawTabProps) {
           "Save your USDT (BEP20) wallet address first.",
           "Meet the requirements: daily ads, active refers, all Main & Partner tasks.",
           `Minimum ${minWithdraw} 🐰 per request (1000 🐰 = $0.01).`,
-          "Submit, watch a quick ad, then wait for admin approval.",
+          "Watch 5 ads (10s each), submit, then wait for admin approval.",
           "After approval, payment is posted to @bunnyearnhubpay with the TX hash.",
         ]} />
       </div>
