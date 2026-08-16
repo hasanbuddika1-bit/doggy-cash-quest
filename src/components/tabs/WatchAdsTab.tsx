@@ -7,9 +7,11 @@ import { processAdReward } from "@/lib/api";
 import { RewardPopup } from "@/components/RewardPopup";
 import { GuideButton } from "@/components/GuideButton";
 import {
-  showAdsgramBlock1, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd, showMonetixAd,
-  AdClosedEarlyError, AdNotShownError,
+  showAdsgramInt, showAdsgramBlock2, showMonetagAd, showAdexiumAd, showGigapubAd, showMonetixAd,
+  AdClosedEarlyError, AdNotShownError, AdsNotAvailableError,
 } from "@/lib/ads";
+import { AdsUnavailablePopup } from "@/components/AdsUnavailablePopup";
+import { VisitSiteSection } from "@/components/VisitSiteSection";
 import { toast } from "sonner";
 import adsgramLogo from "@/assets/logo-adsgram.png";
 import monetagLogo from "@/assets/logo-monetag.png";
@@ -25,7 +27,7 @@ type NetworkKey = "adsgram" | "monetag" | "monetix" | "adexium" | "gigapub";
 const DEFAULT_NETWORKS: { key: NetworkKey; name: string; slots: number; reward: number; logo: string; color: string; border: string; hint: string }[] = [
   { key: "adsgram", name: "Adsgram AI", slots: 20, reward: 5, logo: adsgramLogo,
     color: "from-cyan-500/30 to-blue-500/15", border: "border-cyan-400/40",
-    hint: "Odd slots: 17s ad • Even slots: 33s ad" },
+    hint: "Odd slots: 17s interstitial • Even slots: 33s reward ad" },
   { key: "monetag", name: "Monetag", slots: 15, reward: 5, logo: monetagLogo,
     color: "from-green-500/30 to-emerald-500/15", border: "border-green-400/40",
     hint: "Watch full ad to earn" },
@@ -77,7 +79,8 @@ export function WatchAdsTab({ userId }: Props) {
           title="Watch Ads Guide"
           steps={[
             "Tap an ad network card to open its slots.",
-            "Adsgram: odd slots show a 17s ad, even slots show a 33s ad.",
+            "Adsgram: odd slots use the interstitial block (17s), even slots the reward block (33s).",
+            "🌐 Visit Site: open a sponsor link for 10s and earn 5 🐰.",
             "Monetag, Adexium, GigaPub: watch the full ad — closing early gives no reward.",
             `Each slot resets every ${COOLDOWN_HOURS} hours.`,
             "Daily 40 ad views are required to withdraw.",
@@ -114,6 +117,7 @@ export function WatchAdsTab({ userId }: Props) {
                 </div>
               </motion.button>
             ))}
+            <VisitSiteSection userId={userId} />
           </motion.div>
         ) : (
           <NetworkAds key={selected.key} network={selected} userId={userId} onBack={() => setSelected(null)} />
@@ -125,8 +129,8 @@ export function WatchAdsTab({ userId }: Props) {
 
 async function playForNetwork(network: NetworkKey, adIndex: number): Promise<number> {
   if (network === "adsgram") {
-    // Odd slot → block 1 (17s), even slot → block 2 (33s)
-    return adIndex % 2 === 1 ? showAdsgramBlock1() : showAdsgramBlock2();
+    // Odd slot → interstitial block (17s), even slot → reward block (33s)
+    return adIndex % 2 === 1 ? showAdsgramInt(17) : showAdsgramBlock2();
   }
   if (network === "monetag") return showMonetagAd();
   if (network === "monetix") return showMonetixAd();
@@ -139,6 +143,7 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
   const [watchingAd, setWatchingAd] = useState<number | null>(null);
   const [reward, setReward] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
   const [showAdError, setShowAdError] = useState(false);
+  const [noAds, setNoAds] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -176,7 +181,8 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
       setReward({ show: true, amount: network.reward });
       load();
     } catch (e) {
-      if (e instanceof AdClosedEarlyError) setShowAdError(true);
+      if (e instanceof AdsNotAvailableError) setNoAds(true);
+      else if (e instanceof AdClosedEarlyError) setShowAdError(true);
       else if (e instanceof AdNotShownError) toast.error(`No ad available right now (${e.network}). Try another network.`);
       else toast.error("Failed to load ad");
     }
@@ -186,6 +192,7 @@ function NetworkAds({ network, userId, onBack }: { network: Network; userId: str
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
       <RewardPopup show={reward.show} amount={reward.amount} message="AD REWARD!" onClose={() => setReward({ show: false, amount: 0 })} />
+      <AdsUnavailablePopup show={noAds} onClose={() => setNoAds(false)} />
 
       {showAdError && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAdError(false)}>
